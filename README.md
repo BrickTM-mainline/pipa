@@ -10,7 +10,7 @@ Repository for Arch Linux ARM packages and tools optimized for the Xiaomi Pad 6 
 
 1. Download the setup script:
    ```bash
-   curl -O https://raw.githubusercontent.com/rmuxnet/pipa-arch/main/setup.sh
+   curl -O https://raw.githubusercontent.com/rmuxnet/pipa-arch/refs/heads/main/scripts/setup.sh
    ```
 
 2. Make it executable:
