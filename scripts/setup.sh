@@ -17,26 +17,38 @@ if [ "$(id -u)" -ne 0 ]; then
    exit 1
 fi
 
-# WiFi Setup
+# WiFi Setup - Make it optional
 echo "=== WiFi Setup ==="
-echo "Please enter your WiFi SSID (network name):"
-read ssid
-echo "Please enter your WiFi password:"
-read -s password
-echo "Connecting to WiFi..."
-nmcli device wifi connect "$ssid" password "$password"
+echo "Note: Internet connection is required for system updates and package installation."
+read -p "Do you want to set up WiFi now? (y/n): " setup_wifi
 
-if [ $? -eq 0 ]; then
-    echo "WiFi connected successfully!"
+if [[ $setup_wifi == "y" || $setup_wifi == "Y" ]]; then
+    echo "Please enter your WiFi SSID (network name):"
+    read ssid
+    echo "Please enter your WiFi password:"
+    read -s password
+    echo "Connecting to WiFi..."
+    nmcli device wifi connect "$ssid" password "$password"
+
+    if [ $? -eq 0 ]; then
+        echo "WiFi connected successfully!"
+    else
+        echo "Failed to connect to WiFi. Please check your credentials."
+        echo "You can set up WiFi later using the NetworkManager tool."
+    fi
 else
-    echo "Failed to connect to WiFi. Please check your credentials and try again."
-    exit 1
+    echo "Skipping WiFi setup. You can set it up later using the NetworkManager tool."
+    echo "Note: Some installation steps may fail without internet connection."
 fi
 
 # Test internet connection
 if ! ping -c 1 archlinux.org &> /dev/null; then
-    echo "No internet connection. Please check your network and try again."
-    exit 1
+    echo "Warning: No internet connection detected. Some installation steps may fail."
+    read -p "Continue anyway? (y/n): " continue_setup
+    if [[ $continue_setup != "y" && $continue_setup != "Y" ]]; then
+        echo "Setup aborted."
+        exit 1
+    fi
 fi
 
 # Time and Locale Setup
