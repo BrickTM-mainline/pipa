@@ -282,6 +282,88 @@ case $de_choice in
         ;;
 esac
 
+# Kernel Update and Audio Fix
+echo ""
+echo "=== Arch Linux Kernel 6.14.2 Update ==="
+echo "This should be the last time kernel is updated this way. In the near future, kernel will be updateable by pacman."
+echo ""
+echo "Features:"
+echo "- Update to 6.14.2 Kernel"
+echo "- Sound (less glitchy)"
+echo "- Landscape TTY"
+echo "- Landlock support"
+echo "- Enabled lz4 for zram"
+echo ""
+
+echo "Downloading kernel modules..."
+pacman -S --noconfirm wget unzip || { echo "Failed to install download tools. Continuing anyway..."; }
+wget https://github.com/BrickTM-mainline/pipa/releases/download/3.0/arch_modules_v3_0_0.zip -O /tmp/arch_modules_v3_0_0.zip || { echo "Failed to download kernel modules. Skipping kernel update."; }
+
+if [ -f /tmp/arch_modules_v3_0_0.zip ]; then
+    echo "Installing kernel modules..."
+    unzip -o /tmp/arch_modules_v3_0_0.zip -d / || { echo "Failed to extract kernel modules. Skipping kernel update."; }
+    rm /tmp/arch_modules_v3_0_0.zip
+    echo "Kernel modules updated successfully!"
+else
+    echo "Kernel modules archive not found. Skipping kernel update."
+fi
+
+echo ""
+echo "=== Audio Fix Setup ==="
+echo "Creating ALSA UCM configuration files for Xiaomi Pad 6..."
+
+# Create directories if they don't exist
+mkdir -p /usr/share/alsa/ucm2/conf.d/sm8250
+mkdir -p /usr/share/alsa/ucm2/Qualcomm/sm8250
+
+# Create first configuration file
+cat > "/usr/share/alsa/ucm2/conf.d/sm8250/Xiaomi Pad 6.conf" << EOF
+Syntax 3
+
+SectionUseCase."HiFi" {
+  File "/Qualcomm/sm8250/HiFi.conf"
+  Comment "HiFi quality Music."
+}
+
+SectionUseCase."HDMI" {
+  File "/Qualcomm/sm8250/HDMI.conf"
+  Comment "HDMI output."
+}
+EOF
+
+# Create second configuration file
+cat > "/usr/share/alsa/ucm2/Qualcomm/sm8250/HiFi.conf" << EOF
+Syntax 3
+
+SectionVerb {
+    EnableSequence [
+        # Enable MultiMedia1 routing -> TERTIARY_TDM_RX_0
+        cset "name='TERT_TDM_RX_0 Audio Mixer MultiMedia1' 1"
+    ]
+
+
+    DisableSequence [
+        cset "name='TERT_TDM_RX_0 Audio Mixer MultiMedia1' 0"
+    ]
+
+    Value {
+        TQ "HiFi"
+    }
+}
+
+# Add a section for AW88261 speakers
+SectionDevice."Speaker" {
+    Comment "Speaker playback"
+
+    Value {
+        PlaybackPriority 200
+        PlaybackPCM "hw:\${CardId},0"  # PCM dla TERTIARY_TDM_RX_0
+    }
+}
+EOF
+
+echo "Audio configuration files created successfully!"
+
 echo ""
 echo "=== Setup Completed ==="
 echo "Your Arch Linux system on Xiaomi Pad 6 has been set up successfully!"
