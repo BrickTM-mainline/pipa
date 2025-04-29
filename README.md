@@ -5,9 +5,11 @@ Repository for Arch Linux ARM packages and tools optimized for the Xiaomi Pad 6 
 ## Available Packages
 
 - `setup.sh` - Initial setup script that configures Arch Linux ARM on your Xiaomi Pad 6
+- `scripts/kernel_crossbuild/` - Cross-compile kernel scripts that compiles and creates initial Arch Linux boot.img, also can send modules and headers through network
+
 
 ## Usage
-
+### `setup.sh`
 1. Download the setup script:
    ```bash
    curl -O https://raw.githubusercontent.com/rmuxnet/pipa-arch/refs/heads/main/scripts/setup.sh
@@ -23,6 +25,8 @@ Repository for Arch Linux ARM packages and tools optimized for the Xiaomi Pad 6 
    sudo ./setup.sh
    ```
 
+### kernel_crossbuild
+Read scripts/kernel_crossbuild/README.md
 ## Credits
 
 Maintained by [rmux](https://github.com/rmuxnet) and [domin746826](https://github.com/domin746826)

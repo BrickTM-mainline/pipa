@@ -1,0 +1,5 @@
+EARLYHOOKS="udev"
+HOOKS="udev keymap"
+LATEHOOKS=""
+CLEANUPHOOKS="udev"
+MODULES="panel_novatek_nt36532"
