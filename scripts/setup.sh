@@ -376,6 +376,35 @@ EOF
 
 echo "Audio configuration files created successfully!"
 
+# === User Account Creation ===
+echo ""
+echo "=== User Account Setup ==="
+
+# Prompt to create a regular user
+read -p "Do you want to create a new regular (non-root) user? (y/n): " create_user
+if [[ $create_user == "y" || $create_user == "Y" ]]; then
+    read -p "Enter the username for the new user: " new_username
+    useradd -m -G wheel,audio,video,network -s /bin/bash "$new_username"
+    echo "Set password for $new_username:"
+    passwd "$new_username"
+    echo "$new_username ALL=(ALL) ALL" >> /etc/sudoers.d/10-$new_username
+    chmod 0440 /etc/sudoers.d/10-$new_username
+    echo "User $new_username created and added to sudoers."
+fi
+
+# Prompt to create an additional root user
+read -p "Do you want to create an additional root user? (y/n): " create_root_user
+if [[ $create_root_user == "y" || $create_root_user == "Y" ]]; then
+    read -p "Enter the username for the new root user: " root_username
+    useradd -m -G wheel,audio,video,network -s /bin/bash "$root_username"
+    echo "Set password for $root_username:"
+    passwd "$root_username"
+    usermod -aG root "$root_username"
+    echo "$root_username ALL=(ALL) ALL" >> /etc/sudoers.d/10-$root_username
+    chmod 0440 /etc/sudoers.d/10-$root_username
+    echo "Root user $root_username created and added to sudoers and root group."
+fi
+
 echo ""
 echo "=== Setup Completed ==="
 echo "Your Arch Linux system on Xiaomi Pad 6 has been set up successfully!"
