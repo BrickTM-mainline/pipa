@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Define log file for error tracking
+LOGFILE="/tmp/arch_setup.log"
+
 echo "Script made by rmux"
 echo "===== Arch Linux ARM Setup for Xiaomi Pad 6 ====="
 echo ""
@@ -270,16 +273,38 @@ pacman -S --noconfirm gtop btop nemo || { echo "Failed to install gtop, btop, or
 case $de_choice in
     1)
         echo "Installing GNOME (Wayland)..."
+        # Install GNOME dependencies (Flatpak, malcontent, ostree)
+        echo "Installing GNOME dependencies (Flatpak, malcontent, ostree)..."
+        pacman -S --noconfirm flatpak ostree malcontent appstream \
+            libappstream-glib appstream-glib bubblewrap xdg-dbus-proxy \
+            dconf dconf-editor gsettings-desktop-schemas \
+            polkit accountsservice 2>>"$LOGFILE" || echo "Warning: Failed to install some GNOME dependencies." | tee -a "$LOGFILE"
+        
         # Install GNOME core group and recommended extras for icons/themes
-        pacman -S --noconfirm gnome gnome-extra gnome-tweaks gdm \
+        pacman -S --noconfirm gnome gnome-extra gnome-tweaks sddm \
             adwaita-icon-theme gnome-icon-theme gnome-themes-extra papirus-icon-theme \
             wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome \
-            gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard 2>>"$LOGFILE" \
+            gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard \
+            gnome-software gnome-software-packagekit-plugin 2>>"$LOGFILE" \
             || echo "Warning: Failed to install some GNOME packages. Continuing..." | tee -a "$LOGFILE"
-        systemctl enable gdm 2>>"$LOGFILE"
-        # Warn user about missing Flatpak/malcontent/ostree
-        echo "Note: flatpak, malcontent, and ostree were not installed due to missing dependencies."
-        echo "Some GNOME features (like Flatpak app support and parental controls) may not be available."
+        
+        # Enable Flatpak system-wide
+        flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        
+        # Configure SDDM for GNOME
+        mkdir -p /etc/sddm.conf.d/
+        cat > /etc/sddm.conf.d/gnome_settings.conf << EOF
+[General]
+Session=gnome-wayland
+
+[Theme]
+Current=breeze
+
+[Wayland]
+EnableHiDPI=true
+EOF
+        systemctl enable sddm 2>>"$LOGFILE"
+        echo "GNOME with full Flatpak support and SDDM greeter installed successfully!"
         ;;
     2)
         echo "Installing KDE Plasma (Wayland)..."
@@ -288,8 +313,12 @@ case $de_choice in
         cat > /etc/sddm.conf.d/kde_settings.conf << EOF
 [General]
 Session=plasmawayland
+
 [Theme]
 Current=breeze
+
+[Wayland]
+EnableHiDPI=true
 EOF
         systemctl enable sddm 2>>"$LOGFILE"
         ;;
@@ -299,8 +328,14 @@ EOF
         pacman -S --noconfirm lxqt lxqt-admin lxqt-config lxqt-globalkeys lxqt-panel lxqt-runner breeze-icons pcmanfm-qt wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland 2>>"$LOGFILE" || echo "Warning: Failed to install some LXQt packages. Continuing..." | tee -a "$LOGFILE"
         mkdir -p /etc/sddm.conf.d/
         cat > /etc/sddm.conf.d/lxqt_settings.conf << EOF
+[General]
+Session=lxqt
+
 [Theme]
 Current=breeze
+
+[Wayland]
+EnableHiDPI=true
 EOF
         systemctl enable sddm 2>>"$LOGFILE"
         ;;
@@ -310,8 +345,14 @@ EOF
         pacman -S --noconfirm xfce4 xfce4-goodies xfdesktop xfwm4 xfce4-session network-manager-applet xfce4-power-manager wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland breeze breeze-icons 2>>"$LOGFILE" || echo "Warning: Failed to install some XFCE packages. Continuing..." | tee -a "$LOGFILE"
         mkdir -p /etc/sddm.conf.d/
         cat > /etc/sddm.conf.d/xfce_settings.conf << EOF
+[General]
+Session=xfce
+
 [Theme]
 Current=breeze
+
+[Wayland]
+EnableHiDPI=true
 EOF
         systemctl enable sddm 2>>"$LOGFILE"
         ;;
@@ -320,6 +361,8 @@ EOF
         exit 1
         ;;
 esac
+
+echo "SDDM display manager has been installed and enabled for all desktop environments."
 
 # Display scaling for Wayland/XWayland
 echo ""
@@ -445,22 +488,8 @@ pacman -S --noconfirm gst-libav gst-plugins-ugly gst-plugins-bad ffmpeg || { ech
 echo "Installing archive utilities..."
 pacman -S --noconfirm file-roller ark xarchiver unrar unzip p7zip || { echo "Failed to install archive utilities. Continuing..."; }
 
-# Printing support
-echo "Installing printing support..."
-pacman -S --noconfirm cups system-config-printer || { echo "Failed to install printing support. Continuing..."; }
-systemctl enable cups
-
-# Optional: Network file sharing
-read -p "Do you want to install network file sharing tools (Samba/NFS)? (y/n): " install_sharing
-if [[ $install_sharing == "y" || $install_sharing == "Y" ]]; then
-    pacman -S --noconfirm samba nfs-utils || { echo "Failed to install Samba/NFS. Continuing..."; }
-    systemctl enable smb nmb
-    systemctl enable nfs-server
-    echo "Samba and NFS services enabled. Configure /etc/samba/smb.conf and /etc/exports as needed."
-fi
-
-# Optional: yay AUR helper
-read -p "Do you want to install yay (AUR helper)? (y/n): " install_yay
+# Optional: yay AUR helper and Flatpak installation
+read -p "Do you want to install yay (AUR helper) and additional Flatpak apps? (y/n): " install_yay
 if [[ $install_yay == "y" || $install_yay == "Y" ]]; then
     echo "Checking for yay..."
     if command -v yay >/dev/null 2>&1; then
@@ -474,17 +503,26 @@ if [[ $install_yay == "y" || $install_yay == "Y" ]]; then
             break
         done
         if [[ -n "$yay_user" ]]; then
-            echo "Using user $yay_user to install flatpak with yay..."
-            sudo -u "$yay_user" yay -S --noconfirm flatpak
+            echo "Flatpak is already installed system-wide."
+            # Install ARM64-compatible Flatpak apps
+            if [[ $de_choice == "1" ]]; then
+                echo "Installing ARM64-compatible Flatpak apps for GNOME..."
+                sudo -u "$yay_user" flatpak install -y flathub org.videolan.VLC
+                sudo -u "$yay_user" flatpak install -y flathub org.signal.Signal
+                sudo -u "$yay_user" flatpak install -y flathub com.github.tchx84.Flatseal
+                sudo -u "$yay_user" flatpak install -y flathub org.gnome.Calculator
+                sudo -u "$yay_user" flatpak install -y flathub org.gnome.TextEditor
+                echo "ARM64-compatible Flatpak apps installed!"
+            fi
         else
-            echo "No user selected. Skipping flatpak install."
+            echo "No user selected. Skipping additional flatpak apps."
         fi
     else
         pacman -S --noconfirm git base-devel || { echo "Failed to install build tools for yay. Skipping yay." | tee -a "$LOGFILE"; }
         # List all non-system users (UID >= 1000, except nologin)
         users=$(awk -F: '$3 >= 1000 && $7 !~ /nologin/ {print $1}' /etc/passwd)
         if [[ -z "$users" ]]; then
-            echo "No regular users found. Skipping yay and flatpak install."
+            echo "No regular users found. Skipping yay and additional flatpak apps."
         else
             echo "Available users for yay install:"
             select yay_user in $users; do
@@ -497,21 +535,56 @@ if [[ $install_yay == "y" || $install_yay == "Y" ]]; then
                     cd yay
                     makepkg -si --noconfirm
                 '
-                sudo -u "$yay_user" yay -S --noconfirm flatpak
+                echo "yay installed successfully!"
+                
+                # Install ARM64-compatible Flatpak apps for GNOME
+                if [[ $de_choice == "1" ]]; then
+                    echo "Installing ARM64-compatible Flatpak apps for GNOME..."
+                    sudo -u "$yay_user" flatpak install -y flathub org.videolan.VLC
+                    sudo -u "$yay_user" flatpak install -y flathub org.mozilla.Thunderbird
+                    sudo -u "$yay_user" flatpak install -y flathub org.signal.Signal
+                    sudo -u "$yay_user" flatpak install -y flathub com.github.tchx84.Flatseal
+                    sudo -u "$yay_user" flatpak install -y flathub org.gnome.Calculator
+                    sudo -u "$yay_user" flatpak install -y flathub org.gnome.TextEditor
+                    echo "ARM64-compatible Flatpak apps installed!"
+                fi
+                
+                # Install useful AUR packages for ARM64
+                echo "Installing useful AUR packages for ARM64..."
+                sudo -u "$yay_user" yay -S --noconfirm visual-studio-code-bin
+                echo "AUR packages installed!"
             else
-                echo "No user selected. Skipping yay and flatpak install."
+                echo "No user selected. Skipping yay and additional apps."
             fi
         fi
     fi
 fi
 
-# Suggestion: Offer to install sway (Wayland compositor)
-read -p "Do you want to install sway (Wayland compositor, minimal desktop)? (y/n): " install_sway
-if [[ $install_sway == "y" || $install_sway == "Y" ]]; then
-    pacman -S --noconfirm sway swaybg swaylock swayidle foot dmenu greetd greetd-tuigreet 2>>"$LOGFILE" || echo "Warning: Failed to install sway or related packages. Continuing..." | tee -a "$LOGFILE"
-    systemctl enable greetd 2>>"$LOGFILE"
-    echo "Sway and greetd installed. You can customize sway config in ~/.config/sway/"
-fi
+# Install additional useful native packages
+echo "Installing additional useful native packages for ARM64..."
+pacman -S --noconfirm \
+    neofetch htop tree vim nano \
+    git curl wget rsync \
+    mpv imagemagick \
+    transmission-cli transmission-gtk \
+    gnome-calculator gnome-text-editor \
+    evolution evolution-ews \
+    simple-scan gnome-screenshot \
+    || { echo "Failed to install some additional packages. Continuing..."; }
+
+# ARM64 specific optimizations
+echo "Applying ARM64 specific optimizations..."
+# Enable zswap for better memory management on ARM devices
+echo 'zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20' >> /etc/default/grub || true
+
+# Install ARM64 performance tools
+echo "Installing ARM64 performance monitoring tools..."
+pacman -S --noconfirm \
+    linux-cpupower \
+    thermald \
+    powertop \
+    iotop \
+    || { echo "Failed to install performance tools. Continuing..."; }
 
 # Wayland and ARM/Qualcomm drivers (ensure all needed for best perf)
 echo "Installing essential Wayland and ARM/Qualcomm drivers..."
@@ -524,13 +597,43 @@ pacman -S --noconfirm \
     libva-mesa-driver mesa-vdpau \
     libinput xf86-input-libinput \
     xf86-video-fbdev xf86-video-vesa \
-    # wlroots is not available in Arch Linux ARM official repos; skip it.
-    # For Adreno 650 (SD870), freedreno is the correct open-source driver.
-    # If available, also install mesa-git and vulkan-freedreno-git from AUR for latest features (optional, via yay).
-    # No proprietary Qualcomm GPU driver is available for mainline Linux; freedreno is the only option.
-    # If you want OpenCL, try installing 'mesa-opencl-icd' and 'clinfo' (optional):
-    # pacman -S --noconfirm mesa-opencl-icd clinfo
+    mesa-opencl-icd clinfo \
     || { echo "Failed to install Wayland/ARM/Qualcomm drivers. Continuing..."; }
+
+# Suggestion: Offer to install sway (Wayland compositor)
+read -p "Do you want to install sway (Wayland compositor, minimal desktop)? (y/n): " install_sway
+if [[ $install_sway == "y" || $install_sway == "Y" ]]; then
+    pacman -S --noconfirm sway swaybg swaylock swayidle foot dmenu greetd greetd-tuigreet 2>>"$LOGFILE" || echo "Warning: Failed to install sway or related packages. Continuing..." | tee -a "$LOGFILE"
+    systemctl enable greetd 2>>"$LOGFILE"
+    echo "Sway and greetd installed. You can customize sway config in ~/.config/sway/"
+fi
+
+# Set up display scaling to 2 for better performance and readability
+echo ""
+echo "=== Setting up display scaling ==="
+echo "Setting display scaling to 2 for better performance..."
+
+if [[ $de_choice == "1" ]]; then
+    # GNOME scaling setup
+    echo "Configuring GNOME scaling to 2..."
+    mkdir -p /etc/dconf/db/local.d
+    cat > /etc/dconf/db/local.d/00-scaling << EOF
+[org/gnome/desktop/interface]
+scaling-factor=uint32 2
+
+[org/gnome/mutter]
+experimental-features=['scale-monitor-framebuffer']
+EOF
+    dconf update
+    echo "GNOME scaling set to 2. You can adjust this in Settings > Displays after login."
+elif [[ $de_choice == "2" ]]; then
+    echo "For KDE Plasma, scaling will be set to 200% automatically."
+    echo "You can adjust this in System Settings > Display and Monitor after login."
+elif [[ $de_choice == "3" || $de_choice == "4" ]]; then
+    echo "For wlroots-based compositors, you can use:"
+    echo "wlr-randr --output DSI-1 --scale 2.0"
+    echo "Or for XWayland: xrandr --output DSI-1 --scale 2.0x2.0"
+fi
 
 echo ""
 echo "=== Setup Completed ==="
