@@ -281,7 +281,7 @@ case $de_choice in
             polkit accountsservice 2>>"$LOGFILE" || echo "Warning: Failed to install some GNOME dependencies." | tee -a "$LOGFILE"
         
         # Install GNOME core group and recommended extras for icons/themes
-        pacman -S --noconfirm gnome gnome-extra gnome-tweaks sddm \
+        pacman -S --noconfirm gnome gnome-extra gnome-tweaks gdm \
             adwaita-icon-theme gnome-icon-theme gnome-themes-extra papirus-icon-theme \
             wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome \
             gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard \
@@ -291,20 +291,9 @@ case $de_choice in
         # Enable Flatpak system-wide
         flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
         
-        # Configure SDDM for GNOME
-        mkdir -p /etc/sddm.conf.d/
-        cat > /etc/sddm.conf.d/gnome_settings.conf << EOF
-[General]
-Session=gnome-wayland
-
-[Theme]
-Current=breeze
-
-[Wayland]
-EnableHiDPI=true
-EOF
-        systemctl enable sddm 2>>"$LOGFILE"
-        echo "GNOME with full Flatpak support and SDDM greeter installed successfully!"
+        # Enable GDM for GNOME
+        systemctl enable gdm 2>>"$LOGFILE"
+        echo "GNOME with full Flatpak support and GDM greeter installed successfully!"
         ;;
     2)
         echo "Installing KDE Plasma (Wayland)..."
@@ -362,7 +351,7 @@ EOF
         ;;
 esac
 
-echo "SDDM display manager has been installed and enabled for all desktop environments."
+echo "Display manager has been installed and enabled for the selected desktop environment."
 
 # Display scaling for Wayland/XWayland
 echo ""
