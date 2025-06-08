@@ -158,11 +158,11 @@ pacman -Syu --noconfirm || { echo "Failed to update packages. Exiting."; exit 1;
 # Basic packages (Wayland only)
 echo ""
 echo "=== Installing basic packages ==="
-pacman -S --noconfirm mesa vulkan-freedreno sudo networkmanager bluez bluez-utils fastfetch || { echo "Failed to install basic packages. Exiting."; exit 1; }
+pacman -S --noconfirm mesa vulkan-freedreno sudo networkmanager bluez bluez-utils fastfetch 2>>"$LOGFILE" || { echo "Failed to install basic packages. Exiting." | tee -a "$LOGFILE"; exit 1; }
 
-# Enable essential services
-systemctl enable NetworkManager
-systemctl enable bluetooth
+# Enable essential services with logging
+systemctl enable NetworkManager 2>>"$LOGFILE"
+systemctl enable bluetooth 2>>"$LOGFILE"
 
 # Download and install fixed BlueZ packages
 echo "Downloading and installing fixed BlueZ packages..."
@@ -171,7 +171,7 @@ wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-5.
 wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-libs-5.82-1-aarch64.pkg.tar.xz
 wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-tools-0.2.0-6-aarch64.pkg.tar.xz
 wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-utils-5.82-1-aarch64.pkg.tar.xz
-pacman -U --noconfirm bluez-5.82-1-aarch64.pkg.tar.xz bluez-libs-5.82-1-aarch64.pkg.tar.xz bluez-tools-0.2.0-6-aarch64.pkg.tar.xz bluez-utils-5.82-1-aarch64.pkg.tar.xz
+pacman -U --noconfirm bluez-5.82-1-aarch64.pkg.tar.xz bluez-libs-5.82-1-aarch64.pkg.tar.xz bluez-tools-0.2.0-6-aarch64.pkg.tar.xz bluez-utils-5.82-1-aarch64.pkg.tar.xz 2>>"$LOGFILE"
 
 # Desktop Environment Selection (Wayland only)
 echo ""
@@ -270,16 +270,15 @@ pacman -S --noconfirm gtop btop nemo || { echo "Failed to install gtop, btop, or
 case $de_choice in
     1)
         echo "Installing GNOME (Wayland)..."
-        # Exclude flatpak, malcontent, and ostree due to unresolved dependencies on Arch Linux ARM
-        pacman -S --noconfirm gnome gnome-tweaks gdm wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard || echo "Warning: Failed to install some GNOME packages. Continuing..."
-        systemctl enable gdm
+        pacman -S --noconfirm gnome gnome-tweaks gdm wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard 2>>"$LOGFILE" || echo "Warning: Failed to install some GNOME packages. Continuing..." | tee -a "$LOGFILE"
+        systemctl enable gdm 2>>"$LOGFILE"
         # Warn user about missing Flatpak/malcontent/ostree
         echo "Note: flatpak, malcontent, and ostree were not installed due to missing dependencies."
         echo "Some GNOME features (like Flatpak app support and parental controls) may not be available."
         ;;
     2)
         echo "Installing KDE Plasma (Wayland)..."
-        pacman -S --noconfirm plasma plasma-wayland-session plasma-pa plasma-nm plasma-desktop dolphin kate wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-kde wlroots breeze breeze-icons sddm sddm-kcm qtvirtualkeyboard || echo "Warning: Failed to install some KDE Plasma packages. Continuing..."
+        pacman -S --noconfirm plasma plasma-wayland-session plasma-pa plasma-nm plasma-desktop dolphin kate wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-kde wlroots breeze breeze-icons sddm sddm-kcm qtvirtualkeyboard 2>>"$LOGFILE" || echo "Warning: Failed to install some KDE Plasma packages. Continuing..." | tee -a "$LOGFILE"
         mkdir -p /etc/sddm.conf.d/
         cat > /etc/sddm.conf.d/kde_settings.conf << EOF
 [General]
@@ -287,32 +286,32 @@ Session=plasmawayland
 [Theme]
 Current=breeze
 EOF
-        systemctl enable sddm
+        systemctl enable sddm 2>>"$LOGFILE"
         ;;
     3)
         echo "Installing LXQt (Wayland, experimental)..."
         echo "Warning: LXQt native Wayland support is experimental. You may experience instability."
-        pacman -S --noconfirm lxqt lxqt-admin lxqt-config lxqt-globalkeys lxqt-panel lxqt-runner breeze-icons pcmanfm-qt wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland || echo "Warning: Failed to install some LXQt packages. Continuing..."
+        pacman -S --noconfirm lxqt lxqt-admin lxqt-config lxqt-globalkeys lxqt-panel lxqt-runner breeze-icons pcmanfm-qt wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland 2>>"$LOGFILE" || echo "Warning: Failed to install some LXQt packages. Continuing..." | tee -a "$LOGFILE"
         mkdir -p /etc/sddm.conf.d/
         cat > /etc/sddm.conf.d/lxqt_settings.conf << EOF
 [Theme]
 Current=breeze
 EOF
-        systemctl enable sddm
+        systemctl enable sddm 2>>"$LOGFILE"
         ;;
     4)
         echo "Installing XFCE (Wayland, requires XWayland)..."
         echo "Note: XFCE does not natively support Wayland, but can run under XWayland."
-        pacman -S --noconfirm xfce4 xfce4-goodies xfdesktop xfwm4 xfce4-session network-manager-applet xfce4-power-manager wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland breeze breeze-icons || echo "Warning: Failed to install some XFCE packages. Continuing..."
+        pacman -S --noconfirm xfce4 xfce4-goodies xfdesktop xfwm4 xfce4-session network-manager-applet xfce4-power-manager wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland breeze breeze-icons 2>>"$LOGFILE" || echo "Warning: Failed to install some XFCE packages. Continuing..." | tee -a "$LOGFILE"
         mkdir -p /etc/sddm.conf.d/
         cat > /etc/sddm.conf.d/xfce_settings.conf << EOF
 [Theme]
 Current=breeze
 EOF
-        systemctl enable sddm
+        systemctl enable sddm 2>>"$LOGFILE"
         ;;
     *)
-        echo "Invalid choice. Exiting."
+        echo "Invalid choice. Exiting." | tee -a "$LOGFILE"
         exit 1
         ;;
 esac
@@ -468,9 +467,19 @@ if [[ $install_yay == "y" || $install_yay == "Y" ]]; then
             cd yay
             makepkg -si --noconfirm
         '
+        # Install flatpak using yay as the regular user
+        sudo -u "$new_username" yay -S --noconfirm flatpak
     else
-        echo "No regular user was created in this session. Skipping yay install."
+        echo "No regular user was created in this session. Skipping yay and flatpak install."
     fi
+fi
+
+# Suggestion: Offer to install sway (Wayland compositor)
+read -p "Do you want to install sway (Wayland compositor, minimal desktop)? (y/n): " install_sway
+if [[ $install_sway == "y" || $install_sway == "Y" ]]; then
+    pacman -S --noconfirm sway swaybg swaylock swayidle foot dmenu greetd greetd-tuigreet 2>>"$LOGFILE" || echo "Warning: Failed to install sway or related packages. Continuing..." | tee -a "$LOGFILE"
+    systemctl enable greetd 2>>"$LOGFILE"
+    echo "Sway and greetd installed. You can customize sway config in ~/.config/sway/"
 fi
 
 # Wayland and ARM/Qualcomm drivers (ensure all needed for best perf)
