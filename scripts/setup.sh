@@ -270,7 +270,12 @@ pacman -S --noconfirm gtop btop nemo || { echo "Failed to install gtop, btop, or
 case $de_choice in
     1)
         echo "Installing GNOME (Wayland)..."
-        pacman -S --noconfirm gnome gnome-tweaks gdm wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard 2>>"$LOGFILE" || echo "Warning: Failed to install some GNOME packages. Continuing..." | tee -a "$LOGFILE"
+        # Install GNOME core group and recommended extras for icons/themes
+        pacman -S --noconfirm gnome gnome-extra gnome-tweaks gdm \
+            adwaita-icon-theme gnome-icon-theme gnome-themes-extra papirus-icon-theme \
+            wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome \
+            gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard 2>>"$LOGFILE" \
+            || echo "Warning: Failed to install some GNOME packages. Continuing..." | tee -a "$LOGFILE"
         systemctl enable gdm 2>>"$LOGFILE"
         # Warn user about missing Flatpak/malcontent/ostree
         echo "Note: flatpak, malcontent, and ostree were not installed due to missing dependencies."
@@ -457,20 +462,46 @@ fi
 # Optional: yay AUR helper
 read -p "Do you want to install yay (AUR helper)? (y/n): " install_yay
 if [[ $install_yay == "y" || $install_yay == "Y" ]]; then
-    echo "Installing yay (AUR helper)..."
-    pacman -S --noconfirm git base-devel || { echo "Failed to install build tools for yay. Skipping yay."; }
-    # Use the newly created regular user for yay install
-    if [[ -n "$new_username" ]]; then
-        sudo -u "$new_username" bash -c '
-            cd ~
-            git clone https://aur.archlinux.org/yay.git
-            cd yay
-            makepkg -si --noconfirm
-        '
-        # Install flatpak using yay as the regular user
-        sudo -u "$new_username" yay -S --noconfirm flatpak
+    echo "Checking for yay..."
+    if command -v yay >/dev/null 2>&1; then
+        echo "yay is already installed."
+        yay_user=""
+        # List all non-system users (UID >= 1000, except nologin)
+        users=$(awk -F: '$3 >= 1000 && $7 !~ /nologin/ {print $1}' /etc/passwd)
+        echo "Available users:"
+        select u in $users; do
+            yay_user=$u
+            break
+        done
+        if [[ -n "$yay_user" ]]; then
+            echo "Using user $yay_user to install flatpak with yay..."
+            sudo -u "$yay_user" yay -S --noconfirm flatpak
+        else
+            echo "No user selected. Skipping flatpak install."
+        fi
     else
-        echo "No regular user was created in this session. Skipping yay and flatpak install."
+        pacman -S --noconfirm git base-devel || { echo "Failed to install build tools for yay. Skipping yay." | tee -a "$LOGFILE"; }
+        # List all non-system users (UID >= 1000, except nologin)
+        users=$(awk -F: '$3 >= 1000 && $7 !~ /nologin/ {print $1}' /etc/passwd)
+        if [[ -z "$users" ]]; then
+            echo "No regular users found. Skipping yay and flatpak install."
+        else
+            echo "Available users for yay install:"
+            select yay_user in $users; do
+                break
+            done
+            if [[ -n "$yay_user" ]]; then
+                sudo -u "$yay_user" bash -c '
+                    cd ~
+                    git clone https://aur.archlinux.org/yay.git
+                    cd yay
+                    makepkg -si --noconfirm
+                '
+                sudo -u "$yay_user" yay -S --noconfirm flatpak
+            else
+                echo "No user selected. Skipping yay and flatpak install."
+            fi
+        fi
     fi
 fi
 
