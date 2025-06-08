@@ -460,16 +460,16 @@ read -p "Do you want to install yay (AUR helper)? (y/n): " install_yay
 if [[ $install_yay == "y" || $install_yay == "Y" ]]; then
     echo "Installing yay (AUR helper)..."
     pacman -S --noconfirm git base-devel || { echo "Failed to install build tools for yay. Skipping yay."; }
-    user_to_use=$(logname 2>/dev/null || echo $SUDO_USER)
-    if [[ -z "$user_to_use" ]]; then
-        echo "Could not determine non-root user for yay build. Skipping yay."
-    else
-        sudo -u "$user_to_use" bash -c '
+    # Use the newly created regular user for yay install
+    if [[ -n "$new_username" ]]; then
+        sudo -u "$new_username" bash -c '
             cd ~
             git clone https://aur.archlinux.org/yay.git
             cd yay
             makepkg -si --noconfirm
         '
+    else
+        echo "No regular user was created in this session. Skipping yay install."
     fi
 fi
 
