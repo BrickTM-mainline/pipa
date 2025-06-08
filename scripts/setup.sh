@@ -155,85 +155,61 @@ echo "=== Updating system packages ==="
 echo "This may take some time depending on your internet speed..."
 pacman -Syu --noconfirm || { echo "Failed to update packages. Exiting."; exit 1; }
 
-# Install basic packages
+# Basic packages (Wayland only)
 echo ""
 echo "=== Installing basic packages ==="
-pacman -S --noconfirm mesa vulkan-freedreno sudo networkmanager bluez bluez-utils xorg xorg-server xorg-xinit || { echo "Failed to install basic packages. Exiting."; exit 1; }
+pacman -S --noconfirm mesa vulkan-freedreno sudo networkmanager bluez bluez-utils fastfetch || { echo "Failed to install basic packages. Exiting."; exit 1; }
 
 # Enable essential services
 systemctl enable NetworkManager
 systemctl enable bluetooth
 
-# Fix Bluetooth MAC address
+# Download and install fixed BlueZ packages
+echo "Downloading and installing fixed BlueZ packages..."
+cd /tmp
+wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-5.82-1-aarch64.pkg.tar.xz
+wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-libs-5.82-1-aarch64.pkg.tar.xz
+wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-tools-0.2.0-6-aarch64.pkg.tar.xz
+wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-utils-5.82-1-aarch64.pkg.tar.xz
+pacman -U --noconfirm bluez-5.82-1-aarch64.pkg.tar.xz bluez-libs-5.82-1-aarch64.pkg.tar.xz bluez-tools-0.2.0-6-aarch64.pkg.tar.xz bluez-utils-5.82-1-aarch64.pkg.tar.xz
+
+# Desktop Environment Selection (Wayland only)
 echo ""
-echo "=== Setting up Bluetooth MAC address fix ==="
-cat > /etc/systemd/system/bt-mac.service << EOF
-[Unit]
-Description=Bluetooth MAC fix
-After=bluetooth.service
-Requires=bluetooth.service
-
-[Service]
-Type=oneshot
-ExecStart=/bin/sh -c "/usr/bin/echo "yes" | /usr/bin/btmgmt --index 0 public-addr 00:1a:7d:da:71:13"
-RemainAfterExit=yes
-TimeoutStartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable bt-mac.service
-echo "Bluetooth MAC address fix service has been set up"
-
-# Desktop Environment Selection
-echo ""
-echo "=== Desktop Environment Selection ==="
+echo "=== Desktop Environment Selection (Wayland Only) ==="
 echo "Please select a desktop environment to install:"
-echo "1) KDE Plasma"
-echo "   - Modern, feature-rich desktop environment"
-echo "   - RAM usage: ~1GB"
-echo "   - Good for tablets with touchscreen support"
+echo "1) GNOME (Wayland, RECOMMENDED)"
+echo "2) KDE Plasma (Wayland)"
+echo "3) LXQt (Wayland, experimental)"
+echo "4) XFCE (Wayland, requires XWayland)"
 echo ""
-echo "2) XFCE"
-echo "   - Lightweight traditional desktop environment"
-echo "   - RAM usage: ~500MB"
-echo "   - Customizable but needs additional configuration for tablets"
-echo ""
-echo "3) LXQt"
-echo "   - Very lightweight Qt-based desktop environment"
-echo "   - RAM usage: ~350MB"
-echo "   - Best performance on limited hardware"
-echo "   - RECOMMENDED if you plan to game on this tablet due to lower resource usage"
-echo ""
-read -p "Enter your choice (1-3): " de_choice
+read -p "Enter your choice (1-4): " de_choice
 
-# Terminal Selection
+# Terminal Selection (Wayland compatible)
 echo ""
 echo "=== Terminal Selection ==="
 echo "Please select a terminal to install:"
-echo "1) Konsole (KDE's terminal)"
-echo "2) XFCE Terminal"
-echo "3) QTerminal (LXQt's terminal)"
-echo "4) Alacritty (GPU accelerated terminal)"
-echo "5) Kitty (GPU accelerated terminal with tabs)"
-echo "6) Wezterm (GPU accelerated terminal with advanced features)"
-read -p "Enter your choice (1-6): " term_choice
+echo "1) GNOME Terminal"
+echo "2) Konsole (KDE's terminal, Wayland compatible)"
+echo "3) QTerminal (LXQt's terminal, may require XWayland)"
+echo "4) Alacritty (Wayland compatible)"
+echo "5) Kitty (Wayland compatible)"
+echo "6) Wezterm (Wayland compatible)"
+echo "7) Foot (Wayland compatible)"
+read -p "Enter your choice (1-7): " term_choice
 
 # Install Firefox browser and common applications
-echo "Installing Firefox browser and common desktop applications..."
-pacman -S --noconfirm firefox gvfs gvfs-mtp pulseaudio pavucontrol xdg-user-dirs || { echo "Failed to install common applications. Exiting."; exit 1; }
+echo "Installing Firefox browser, fastfetch, and common desktop applications..."
+pacman -S --noconfirm firefox gvfs gvfs-mtp pulseaudio pavucontrol xdg-user-dirs fastfetch || { echo "Failed to install common applications. Exiting."; exit 1; }
 
 # Install selected terminal
 case $term_choice in
     1)
-        echo "Installing Konsole terminal..."
-        pacman -S --noconfirm konsole
+        echo "Installing GNOME Terminal..."
+        pacman -S --noconfirm gnome-terminal
         ;;
     2)
-        echo "Installing XFCE Terminal..."
-        pacman -S --noconfirm xfce4-terminal
+        echo "Installing Konsole terminal..."
+        pacman -S --noconfirm konsole
         ;;
     3)
         echo "Installing QTerminal..."
@@ -251,41 +227,85 @@ case $term_choice in
         echo "Installing Wezterm terminal..."
         pacman -S --noconfirm wezterm
         ;;
+    7)
+        echo "Installing Foot terminal..."
+        pacman -S --noconfirm foot
+        ;;
     *)
         echo "Invalid choice. Installing default terminal based on DE."
         ;;
 esac
 
-# Install SDDM and theme
-echo "Installing SDDM display manager with theme..."
-pacman -S --noconfirm sddm sddm-kcm || { echo "Failed to install SDDM. Exiting."; exit 1; }
+# Install extra fonts and emojis
+echo "Installing extra fonts and emoji support..."
+pacman -S --noconfirm noto-fonts noto-fonts-emoji ttf-dejavu || { echo "Failed to install fonts. Continuing..."; }
 
-# Install a theme for SDDM to avoid bugs
-pacman -S --noconfirm breeze || { echo "Warning: Failed to install SDDM theme. SDDM might have display issues."; }
+# Optionally install AppleColorEmoji.ttf (iOS emojis)
+read -p "Do you want to install iOS (Apple) emojis? (y/n): " install_apple_emoji
+if [[ $install_apple_emoji == "y" || $install_apple_emoji == "Y" ]]; then
+    mkdir -p /usr/share/fonts/apple-emoji
+    wget -nc https://github.com/samuelngs/apple-emoji-linux/releases/download/v18.4/AppleColorEmoji.ttf -O /usr/share/fonts/apple-emoji/AppleColorEmoji.ttf
+    fc-cache -fv
+    echo "AppleColorEmoji.ttf installed."
+fi
 
-# Configure SDDM
-mkdir -p /etc/sddm.conf.d/
-cat > /etc/sddm.conf.d/kde_settings.conf << EOF
+# Install power management and brightness control
+echo "Installing power management and brightness control tools..."
+pacman -S --noconfirm tlp brightnessctl || { echo "Failed to install power/brightness tools. Continuing..."; }
+systemctl enable tlp
+
+# Install blueman for Bluetooth GUI
+echo "Installing blueman Bluetooth manager..."
+pacman -S --noconfirm blueman || { echo "Failed to install blueman. Continuing..."; }
+
+# Install Wayland screenshot tools and scrcpy
+echo "Installing Wayland screenshot tools (grim, slurp) and scrcpy..."
+pacman -S --noconfirm grim slurp scrcpy || { echo "Failed to install screenshot tools or scrcpy. Continuing..."; }
+
+# Install gtop (system monitoring), btop (modern system monitor), and nemo (GNOME file manager)
+echo "Installing gtop, btop (system monitors), and nemo (file manager for GNOME)..."
+pacman -S --noconfirm gtop btop nemo || { echo "Failed to install gtop, btop, or nemo. Continuing..."; }
+
+# Desktop Environment Installation (Wayland only)
+case $de_choice in
+    1)
+        echo "Installing GNOME (Wayland)..."
+        pacman -S --noconfirm gnome gnome-tweaks gdm wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome gtk3 gtk4 qt5-wayland qt6-wayland wlroots breeze breeze-icons onboard || { echo "Failed to install GNOME. Exiting."; exit 1; }
+        systemctl enable gdm
+        # GNOME uses its own theme, no SDDM needed
+        ;;
+    2)
+        echo "Installing KDE Plasma (Wayland)..."
+        pacman -S --noconfirm plasma plasma-wayland-session plasma-pa plasma-nm plasma-desktop dolphin kate wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-kde wlroots breeze breeze-icons sddm sddm-kcm qtvirtualkeyboard || { echo "Failed to install KDE Plasma. Exiting."; exit 1; }
+        mkdir -p /etc/sddm.conf.d/
+        cat > /etc/sddm.conf.d/kde_settings.conf << EOF
+[General]
+Session=plasmawayland
 [Theme]
 Current=breeze
 EOF
-
-# Desktop Environment Installation
-case $de_choice in
-    1)
-        echo "Installing KDE Plasma Desktop..."
-        pacman -S --noconfirm plasma plasma-wayland-session plasma-pa plasma-nm plasma-desktop dolphin kate xorg-server-xwayland || { echo "Failed to install KDE Plasma. Exiting."; exit 1; }
-        systemctl enable sddm
-        ;;
-    2)
-        echo "Installing XFCE Desktop..."
-        pacman -S --noconfirm xfce4 xfce4-goodies xfdesktop xfwm4 xfce4-session xorg-xinit network-manager-applet xfce4-power-manager || { echo "Failed to install XFCE. Exiting."; exit 1; }
-        # Use SDDM for XFCE too
         systemctl enable sddm
         ;;
     3)
-        echo "Installing LXQt Desktop..."
-        pacman -S --noconfirm lxqt lxqt-admin lxqt-config lxqt-globalkeys lxqt-panel lxqt-runner breeze-icons pcmanfm-qt xorg-xinit network-manager-applet || { echo "Failed to install LXQt. Exiting."; exit 1; }
+        echo "Installing LXQt (Wayland, experimental)..."
+        echo "Warning: LXQt native Wayland support is experimental. You may experience instability."
+        pacman -S --noconfirm lxqt lxqt-admin lxqt-config lxqt-globalkeys lxqt-panel lxqt-runner breeze-icons pcmanfm-qt wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland || { echo "Failed to install LXQt. Exiting."; exit 1; }
+        mkdir -p /etc/sddm.conf.d/
+        cat > /etc/sddm.conf.d/lxqt_settings.conf << EOF
+[Theme]
+Current=breeze
+EOF
+        systemctl enable sddm
+        ;;
+    4)
+        echo "Installing XFCE (Wayland, requires XWayland)..."
+        echo "Note: XFCE does not natively support Wayland, but can run under XWayland."
+        pacman -S --noconfirm xfce4 xfce4-goodies xfdesktop xfwm4 xfce4-session network-manager-applet xfce4-power-manager wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland breeze breeze-icons || { echo "Failed to install XFCE. Exiting."; exit 1; }
+        mkdir -p /etc/sddm.conf.d/
+        cat > /etc/sddm.conf.d/xfce_settings.conf << EOF
+[Theme]
+Current=breeze
+EOF
         systemctl enable sddm
         ;;
     *)
@@ -294,27 +314,32 @@ case $de_choice in
         ;;
 esac
 
+# Display scaling for Wayland/XWayland
+echo ""
+echo "=== Display Scaling Setup ==="
+if [[ $de_choice == "1" ]]; then
+    echo "For GNOME, set scaling in Settings > Displays after login."
+elif [[ $de_choice == "2" ]]; then
+    echo "For KDE Plasma, set scaling in System Settings > Display and Monitor > Display Configuration after login."
+elif [[ $de_choice == "3" || $de_choice == "4" ]]; then
+    echo "For wlroots-based compositors (LXQt/experimental, XFCE/XWayland), you can use wlr-randr for scaling."
+    echo "Example: wlr-randr --output DSI-1 --scale 0.5"
+    echo "Note: xrandr is for Xorg/XWayland only. For XWayland, use:"
+    echo "xrandr --output DSI-1 --scale 0.5x0.5"
+    echo "If you are running under pure Wayland, use wlr-randr instead."
+fi
+
 # Kernel Update and Audio Fix
 echo ""
 echo "=== Arch Linux Kernel 6.14.2 Update ==="
-echo "This should be the last time kernel is updated this way. In the near future, kernel will be updateable by pacman."
-echo ""
-echo "Features:"
-echo "- Update to 6.14.2 Kernel"
-echo "- Sound (less glitchy)"
-echo "- Landscape TTY"
-echo "- Landlock support"
-echo "- Enabled lz4 for zram"
-echo ""
+echo "Downloading and extracting kernel modules..."
+pacman -S --noconfirm wget p7zip unzip || { echo "Failed to install download tools. Continuing anyway..."; }
+wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z -O /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z || { echo "Failed to download kernel modules. Skipping kernel update."; }
 
-echo "Downloading kernel modules..."
-pacman -S --noconfirm wget unzip || { echo "Failed to install download tools. Continuing anyway..."; }
-wget https://github.com/BrickTM-mainline/pipa/releases/download/3.0/arch_modules_v3_0_0.zip -O /tmp/arch_modules_v3_0_0.zip || { echo "Failed to download kernel modules. Skipping kernel update."; }
-
-if [ -f /tmp/arch_modules_v3_0_0.zip ]; then
-    echo "Installing kernel modules..."
-    unzip -o /tmp/arch_modules_v3_0_0.zip -d / || { echo "Failed to extract kernel modules. Skipping kernel update."; }
-    rm /tmp/arch_modules_v3_0_0.zip
+if [ -f /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z ]; then
+    echo "Extracting kernel modules to /lib/modules/..."
+    7z x /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z -o/lib/modules/ || { echo "Failed to extract kernel modules. Skipping kernel update."; }
+    rm /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z
     echo "Kernel modules updated successfully!"
 else
     echo "Kernel modules archive not found. Skipping kernel update."
@@ -404,6 +429,64 @@ if [[ $create_root_user == "y" || $create_root_user == "Y" ]]; then
     chmod 0440 /etc/sudoers.d/10-$root_username
     echo "Root user $root_username created and added to sudoers and root group."
 fi
+
+# Install media codecs
+echo "Installing media codecs..."
+pacman -S --noconfirm gst-libav gst-plugins-ugly gst-plugins-bad ffmpeg || { echo "Failed to install codecs. Continuing..."; }
+
+# Install archive utilities
+echo "Installing archive utilities..."
+pacman -S --noconfirm file-roller ark xarchiver unrar unzip p7zip || { echo "Failed to install archive utilities. Continuing..."; }
+
+# Printing support
+echo "Installing printing support..."
+pacman -S --noconfirm cups system-config-printer || { echo "Failed to install printing support. Continuing..."; }
+systemctl enable cups
+
+# Optional: Network file sharing
+read -p "Do you want to install network file sharing tools (Samba/NFS)? (y/n): " install_sharing
+if [[ $install_sharing == "y" || $install_sharing == "Y" ]]; then
+    pacman -S --noconfirm samba nfs-utils || { echo "Failed to install Samba/NFS. Continuing..."; }
+    systemctl enable smb nmb
+    systemctl enable nfs-server
+    echo "Samba and NFS services enabled. Configure /etc/samba/smb.conf and /etc/exports as needed."
+fi
+
+# Optional: yay AUR helper
+read -p "Do you want to install yay (AUR helper)? (y/n): " install_yay
+if [[ $install_yay == "y" || $install_yay == "Y" ]]; then
+    echo "Installing yay (AUR helper)..."
+    pacman -S --noconfirm git base-devel || { echo "Failed to install build tools for yay. Skipping yay."; }
+    user_to_use=$(logname 2>/dev/null || echo $SUDO_USER)
+    if [[ -z "$user_to_use" ]]; then
+        echo "Could not determine non-root user for yay build. Skipping yay."
+    else
+        sudo -u "$user_to_use" bash -c '
+            cd ~
+            git clone https://aur.archlinux.org/yay.git
+            cd yay
+            makepkg -si --noconfirm
+        '
+    fi
+fi
+
+# Wayland and ARM/Qualcomm drivers (ensure all needed for best perf)
+echo "Installing essential Wayland and ARM/Qualcomm drivers..."
+pacman -S --noconfirm \
+    wayland wayland-protocols wlroots \
+    qt5-wayland qt6-wayland \
+    mesa mesa-utils \
+    vulkan-freedreno vulkan-icd-loader \
+    libdrm libglvnd \
+    libva-mesa-driver mesa-vdpau \
+    libinput xf86-input-libinput \
+    xf86-video-fbdev xf86-video-vesa \
+    # For Adreno 650 (SD870), freedreno is the correct open-source driver.
+    # If available, also install mesa-git and vulkan-freedreno-git from AUR for latest features (optional, via yay).
+    # No proprietary Qualcomm GPU driver is available for mainline Linux; freedreno is the only option.
+    # If you want OpenCL, try installing 'mesa-opencl-icd' and 'clinfo' (optional):
+    # pacman -S --noconfirm mesa-opencl-icd clinfo
+    || { echo "Failed to install Wayland/ARM/Qualcomm drivers. Continuing..."; }
 
 echo ""
 echo "=== Setup Completed ==="
