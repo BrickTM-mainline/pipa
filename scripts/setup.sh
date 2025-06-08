@@ -270,13 +270,16 @@ pacman -S --noconfirm gtop btop nemo || { echo "Failed to install gtop, btop, or
 case $de_choice in
     1)
         echo "Installing GNOME (Wayland)..."
-        pacman -S --noconfirm gnome gnome-tweaks gdm wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome gtk3 gtk4 qt5-wayland qt6-wayland wlroots breeze breeze-icons onboard || { echo "Failed to install GNOME. Exiting."; exit 1; }
+        # Exclude flatpak, malcontent, and ostree due to unresolved dependencies on Arch Linux ARM
+        pacman -S --noconfirm gnome gnome-tweaks gdm wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard || echo "Warning: Failed to install some GNOME packages. Continuing..."
         systemctl enable gdm
-        # GNOME uses its own theme, no SDDM needed
+        # Warn user about missing Flatpak/malcontent/ostree
+        echo "Note: flatpak, malcontent, and ostree were not installed due to missing dependencies."
+        echo "Some GNOME features (like Flatpak app support and parental controls) may not be available."
         ;;
     2)
         echo "Installing KDE Plasma (Wayland)..."
-        pacman -S --noconfirm plasma plasma-wayland-session plasma-pa plasma-nm plasma-desktop dolphin kate wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-kde wlroots breeze breeze-icons sddm sddm-kcm qtvirtualkeyboard || { echo "Failed to install KDE Plasma. Exiting."; exit 1; }
+        pacman -S --noconfirm plasma plasma-wayland-session plasma-pa plasma-nm plasma-desktop dolphin kate wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-kde wlroots breeze breeze-icons sddm sddm-kcm qtvirtualkeyboard || echo "Warning: Failed to install some KDE Plasma packages. Continuing..."
         mkdir -p /etc/sddm.conf.d/
         cat > /etc/sddm.conf.d/kde_settings.conf << EOF
 [General]
@@ -289,7 +292,7 @@ EOF
     3)
         echo "Installing LXQt (Wayland, experimental)..."
         echo "Warning: LXQt native Wayland support is experimental. You may experience instability."
-        pacman -S --noconfirm lxqt lxqt-admin lxqt-config lxqt-globalkeys lxqt-panel lxqt-runner breeze-icons pcmanfm-qt wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland || { echo "Failed to install LXQt. Exiting."; exit 1; }
+        pacman -S --noconfirm lxqt lxqt-admin lxqt-config lxqt-globalkeys lxqt-panel lxqt-runner breeze-icons pcmanfm-qt wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland || echo "Warning: Failed to install some LXQt packages. Continuing..."
         mkdir -p /etc/sddm.conf.d/
         cat > /etc/sddm.conf.d/lxqt_settings.conf << EOF
 [Theme]
@@ -300,7 +303,7 @@ EOF
     4)
         echo "Installing XFCE (Wayland, requires XWayland)..."
         echo "Note: XFCE does not natively support Wayland, but can run under XWayland."
-        pacman -S --noconfirm xfce4 xfce4-goodies xfdesktop xfwm4 xfce4-session network-manager-applet xfce4-power-manager wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland breeze breeze-icons || { echo "Failed to install XFCE. Exiting."; exit 1; }
+        pacman -S --noconfirm xfce4 xfce4-goodies xfdesktop xfwm4 xfce4-session network-manager-applet xfce4-power-manager wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland breeze breeze-icons || echo "Warning: Failed to install some XFCE packages. Continuing..."
         mkdir -p /etc/sddm.conf.d/
         cat > /etc/sddm.conf.d/xfce_settings.conf << EOF
 [Theme]
@@ -473,7 +476,7 @@ fi
 # Wayland and ARM/Qualcomm drivers (ensure all needed for best perf)
 echo "Installing essential Wayland and ARM/Qualcomm drivers..."
 pacman -S --noconfirm \
-    wayland wayland-protocols wlroots \
+    wayland wayland-protocols \
     qt5-wayland qt6-wayland \
     mesa mesa-utils \
     vulkan-freedreno vulkan-icd-loader \
@@ -481,6 +484,7 @@ pacman -S --noconfirm \
     libva-mesa-driver mesa-vdpau \
     libinput xf86-input-libinput \
     xf86-video-fbdev xf86-video-vesa \
+    # wlroots is not available in Arch Linux ARM official repos; skip it.
     # For Adreno 650 (SD870), freedreno is the correct open-source driver.
     # If available, also install mesa-git and vulkan-freedreno-git from AUR for latest features (optional, via yay).
     # No proprietary Qualcomm GPU driver is available for mainline Linux; freedreno is the only option.
