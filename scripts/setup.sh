@@ -2,6 +2,7 @@
 
 # Define log file for error tracking
 LOGFILE="/tmp/arch_setup.log"
+exec 2>>"$LOGFILE"
 
 echo "Script made by rmux"
 echo "===== Arch Linux ARM Setup for Xiaomi Pad 6 ====="
@@ -31,9 +32,7 @@ if [[ $setup_wifi == "y" || $setup_wifi == "Y" ]]; then
     echo "Please enter your WiFi password:"
     read -s password
     echo "Connecting to WiFi..."
-    nmcli device wifi connect "$ssid" password "$password"
-
-    if [ $? -eq 0 ]; then
+    if nmcli device wifi connect "$ssid" password "$password" &>>"$LOGFILE"; then
         echo "WiFi connected successfully!"
     else
         echo "Failed to connect to WiFi. Please check your credentials."
@@ -45,7 +44,7 @@ else
 fi
 
 # Test internet connection
-if ! ping -c 1 archlinux.org &> /dev/null; then
+if ! ping -c 1 archlinux.org &>>"$LOGFILE"; then
     echo "Warning: No internet connection detected. Some installation steps may fail."
     read -p "Continue anyway? (y/n): " continue_setup
     if [[ $continue_setup != "y" && $continue_setup != "Y" ]]; then
@@ -156,217 +155,175 @@ echo "Locale set to $locale"
 echo ""
 echo "=== Updating system packages ==="
 echo "This may take some time depending on your internet speed..."
-pacman -Syu --noconfirm || { echo "Failed to update packages. Exiting."; exit 1; }
+if ! pacman -Syu --noconfirm &>>"$LOGFILE"; then
+    echo "ERROR: Failed to update packages. Check $LOGFILE for details."
+    exit 1
+fi
 
 # Basic packages (Wayland only)
 echo ""
 echo "=== Installing basic packages ==="
-pacman -S --noconfirm mesa vulkan-freedreno sudo networkmanager bluez bluez-utils fastfetch 2>>"$LOGFILE" || { echo "Failed to install basic packages. Exiting." | tee -a "$LOGFILE"; exit 1; }
+if ! pacman -S --noconfirm mesa vulkan-freedreno sudo networkmanager bluez bluez-utils fastfetch macchanger &>>"$LOGFILE"; then
+    echo "ERROR: Failed to install basic packages. Check $LOGFILE for details."
+    exit 1
+fi
 
-# Enable essential services with logging
-systemctl enable NetworkManager 2>>"$LOGFILE"
-systemctl enable bluetooth 2>>"$LOGFILE"
+# Enable essential services
+systemctl enable NetworkManager &>>"$LOGFILE"
+systemctl enable bluetooth &>>"$LOGFILE"
 
 # Download and install fixed BlueZ packages
 echo "Downloading and installing fixed BlueZ packages..."
 cd /tmp
-wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-5.82-1-aarch64.pkg.tar.xz
-wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-libs-5.82-1-aarch64.pkg.tar.xz
-wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-tools-0.2.0-6-aarch64.pkg.tar.xz
-wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-utils-5.82-1-aarch64.pkg.tar.xz
-pacman -U --noconfirm bluez-5.82-1-aarch64.pkg.tar.xz bluez-libs-5.82-1-aarch64.pkg.tar.xz bluez-tools-0.2.0-6-aarch64.pkg.tar.xz bluez-utils-5.82-1-aarch64.pkg.tar.xz 2>>"$LOGFILE"
+if wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-5.82-1-aarch64.pkg.tar.xz &>>"$LOGFILE" && \
+   wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-libs-5.82-1-aarch64.pkg.tar.xz &>>"$LOGFILE" && \
+   wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-tools-0.2.0-6-aarch64.pkg.tar.xz &>>"$LOGFILE" && \
+   wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-utils-5.82-1-aarch64.pkg.tar.xz &>>"$LOGFILE"; then
+    pacman -U --noconfirm bluez-5.82-1-aarch64.pkg.tar.xz bluez-libs-5.82-1-aarch64.pkg.tar.xz bluez-tools-0.2.0-6-aarch64.pkg.tar.xz bluez-utils-5.82-1-aarch64.pkg.tar.xz &>>"$LOGFILE"
+else
+    echo "Warning: Failed to download BlueZ packages. Using default packages."
+fi
 
-# Desktop Environment Selection (Wayland only)
+# Desktop Environment Selection (GNOME and KDE only)
 echo ""
 echo "=== Desktop Environment Selection (Wayland Only) ==="
 echo "Please select a desktop environment to install:"
 echo "1) GNOME (Wayland, RECOMMENDED)"
 echo "2) KDE Plasma (Wayland)"
-echo "3) LXQt (Wayland, experimental)"
-echo "4) XFCE (Wayland, requires XWayland)"
 echo ""
-read -p "Enter your choice (1-4): " de_choice
+read -p "Enter your choice (1-2): " de_choice
 
 # Terminal Selection (Wayland compatible)
 echo ""
 echo "=== Terminal Selection ==="
 echo "Please select a terminal to install:"
-echo "1) GNOME Terminal"
-echo "2) Konsole (KDE's terminal, Wayland compatible)"
-echo "3) QTerminal (LXQt's terminal, may require XWayland)"
-echo "4) Alacritty (Wayland compatible)"
-echo "5) Kitty (Wayland compatible)"
-echo "6) Wezterm (Wayland compatible)"
-echo "7) Foot (Wayland compatible)"
-read -p "Enter your choice (1-7): " term_choice
+echo "1) GNOME Terminal (GNOME default)"
+echo "2) Konsole (KDE default)"
+echo "3) Alacritty (Wayland compatible)"
+echo "4) Kitty (Wayland compatible)"
+echo "5) Foot (Wayland compatible, lightweight)"
+read -p "Enter your choice (1-5): " term_choice
 
 # Install Firefox browser and common applications
 echo "Installing Firefox browser, fastfetch, and common desktop applications..."
-pacman -S --noconfirm firefox gvfs gvfs-mtp pulseaudio pavucontrol xdg-user-dirs fastfetch || { echo "Failed to install common applications. Exiting."; exit 1; }
+if ! pacman -S --noconfirm firefox gvfs gvfs-mtp pulseaudio pavucontrol xdg-user-dirs fastfetch &>>"$LOGFILE"; then
+    echo "ERROR: Failed to install common applications. Check $LOGFILE for details."
+    exit 1
+fi
 
 # Install selected terminal
 case $term_choice in
-    1)
-        echo "Installing GNOME Terminal..."
-        pacman -S --noconfirm gnome-terminal
-        ;;
-    2)
-        echo "Installing Konsole terminal..."
-        pacman -S --noconfirm konsole
-        ;;
-    3)
-        echo "Installing QTerminal..."
-        pacman -S --noconfirm qterminal
-        ;;
-    4)
-        echo "Installing Alacritty terminal..."
-        pacman -S --noconfirm alacritty
-        ;;
-    5)
-        echo "Installing Kitty terminal..."
-        pacman -S --noconfirm kitty
-        ;;
-    6)
-        echo "Installing Wezterm terminal..."
-        pacman -S --noconfirm wezterm
-        ;;
-    7)
-        echo "Installing Foot terminal..."
-        pacman -S --noconfirm foot
-        ;;
-    *)
-        echo "Invalid choice. Installing default terminal based on DE."
-        ;;
+    1) pacman -S --noconfirm gnome-terminal &>>"$LOGFILE" ;;
+    2) pacman -S --noconfirm konsole &>>"$LOGFILE" ;;
+    3) pacman -S --noconfirm alacritty &>>"$LOGFILE" ;;
+    4) pacman -S --noconfirm kitty &>>"$LOGFILE" ;;
+    5) pacman -S --noconfirm foot &>>"$LOGFILE" ;;
+    *) echo "Invalid choice. Installing default terminal based on DE." ;;
 esac
 
 # Install extra fonts and emojis
 echo "Installing extra fonts and emoji support..."
-pacman -S --noconfirm noto-fonts noto-fonts-emoji ttf-dejavu || { echo "Failed to install fonts. Continuing..."; }
+pacman -S --noconfirm noto-fonts noto-fonts-emoji ttf-dejavu &>>"$LOGFILE" || echo "Warning: Failed to install fonts. Continuing..."
 
 # Optionally install AppleColorEmoji.ttf (iOS emojis)
 read -p "Do you want to install iOS (Apple) emojis? (y/n): " install_apple_emoji
 if [[ $install_apple_emoji == "y" || $install_apple_emoji == "Y" ]]; then
     mkdir -p /usr/share/fonts/apple-emoji
-    wget -nc https://github.com/samuelngs/apple-emoji-linux/releases/download/v18.4/AppleColorEmoji.ttf -O /usr/share/fonts/apple-emoji/AppleColorEmoji.ttf
-    fc-cache -fv
-    echo "AppleColorEmoji.ttf installed."
+    if wget -nc https://github.com/samuelngs/apple-emoji-linux/releases/download/v18.4/AppleColorEmoji.ttf -O /usr/share/fonts/apple-emoji/AppleColorEmoji.ttf &>>"$LOGFILE"; then
+        fc-cache -fv &>>"$LOGFILE"
+        echo "AppleColorEmoji.ttf installed."
+    else
+        echo "Warning: Failed to download Apple emojis."
+    fi
 fi
 
-# Install power management and brightness control
-echo "Installing power management and brightness control tools..."
-pacman -S --noconfirm tlp brightnessctl || { echo "Failed to install power/brightness tools. Continuing..."; }
-systemctl enable tlp
+# Install power management and utilities
+echo "Installing power management, brightness control, and system tools..."
+pacman -S --noconfirm tlp brightnessctl blueman grim slurp scrcpy gtop btop nemo &>>"$LOGFILE" || echo "Warning: Failed to install some utilities."
+systemctl enable tlp &>>"$LOGFILE"
 
-# Install blueman for Bluetooth GUI
-echo "Installing blueman Bluetooth manager..."
-pacman -S --noconfirm blueman || { echo "Failed to install blueman. Continuing..."; }
-
-# Install Wayland screenshot tools and scrcpy
-echo "Installing Wayland screenshot tools (grim, slurp) and scrcpy..."
-pacman -S --noconfirm grim slurp scrcpy || { echo "Failed to install screenshot tools or scrcpy. Continuing..."; }
-
-# Install gtop (system monitoring), btop (modern system monitor), and nemo (GNOME file manager)
-echo "Installing gtop, btop (system monitors), and nemo (file manager for GNOME)..."
-pacman -S --noconfirm gtop btop nemo || { echo "Failed to install gtop, btop, or nemo. Continuing..."; }
-
-# Desktop Environment Installation (Wayland only)
+# Desktop Environment Installation
 case $de_choice in
     1)
         echo "Installing GNOME (Wayland)..."
-        # Install GNOME dependencies (Flatpak, malcontent, ostree)
-        echo "Installing GNOME dependencies (Flatpak, malcontent, ostree)..."
-        pacman -S --noconfirm flatpak ostree malcontent appstream \
+        # Install GNOME dependencies
+        if ! pacman -S --noconfirm flatpak ostree malcontent appstream \
             libappstream-glib appstream-glib bubblewrap xdg-dbus-proxy \
             dconf dconf-editor gsettings-desktop-schemas \
-            polkit accountsservice 2>>"$LOGFILE" || echo "Warning: Failed to install some GNOME dependencies." | tee -a "$LOGFILE"
+            polkit accountsservice &>>"$LOGFILE"; then
+            echo "Warning: Failed to install some GNOME dependencies."
+        fi
         
-        # Install GNOME core group and recommended extras for icons/themes
-        pacman -S --noconfirm gnome gnome-extra gnome-tweaks gdm \
+        # Install GNOME core
+        if ! pacman -S --noconfirm gnome gnome-extra gnome-tweaks gdm \
             adwaita-icon-theme gnome-icon-theme gnome-themes-extra papirus-icon-theme \
             wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome \
             gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard \
-            gnome-software gnome-software-packagekit-plugin 2>>"$LOGFILE" \
-            || echo "Warning: Failed to install some GNOME packages. Continuing..." | tee -a "$LOGFILE"
+            gnome-software gnome-software-packagekit-plugin &>>"$LOGFILE"; then
+            echo "ERROR: Failed to install GNOME. Check $LOGFILE for details."
+            exit 1
+        fi
         
-        # Enable Flatpak system-wide
-        flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        # Configure GDM for Wayland
+        mkdir -p /etc/gdm/
+        cat > /etc/gdm/custom.conf << EOF
+[daemon]
+WaylandEnable=true
+AutomaticLoginEnable=false
+
+[security]
+
+[xdmcp]
+
+[chooser]
+
+[debug]
+EOF
         
-        # Enable GDM for GNOME
-        systemctl enable gdm 2>>"$LOGFILE"
-        echo "GNOME with full Flatpak support and GDM greeter installed successfully!"
+        # Configure Flatpak
+        flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo &>>"$LOGFILE"
+        
+        # Enable GDM
+        systemctl enable gdm &>>"$LOGFILE"
+        echo "GNOME with GDM (Wayland) installed successfully!"
         ;;
     2)
         echo "Installing KDE Plasma (Wayland)..."
-        pacman -S --noconfirm plasma plasma-wayland-session plasma-pa plasma-nm plasma-desktop dolphin kate wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-kde wlroots breeze breeze-icons sddm sddm-kcm qtvirtualkeyboard 2>>"$LOGFILE" || echo "Warning: Failed to install some KDE Plasma packages. Continuing..." | tee -a "$LOGFILE"
+        if ! pacman -S --noconfirm plasma plasma-wayland-session plasma-pa plasma-nm plasma-desktop \
+            dolphin kate wayland wayland-protocols qt5-wayland qt6-wayland \
+            xdg-desktop-portal xdg-desktop-portal-kde wlroots breeze breeze-icons \
+            sddm sddm-kcm qtvirtualkeyboard &>>"$LOGFILE"; then
+            echo "ERROR: Failed to install KDE Plasma. Check $LOGFILE for details."
+            exit 1
+        fi
+        
+        # Configure SDDM for Wayland
         mkdir -p /etc/sddm.conf.d/
-        cat > /etc/sddm.conf.d/kde_settings.conf << EOF
+        cat > /etc/sddm.conf.d/10-wayland.conf << EOF
 [General]
-Session=plasmawayland
+DisplayServer=wayland
+CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts --locale1
 
 [Theme]
 Current=breeze
 
 [Wayland]
-EnableHiDPI=true
+SessionDir=/usr/share/wayland-sessions
+CompositorCommand=kwin_wayland --drm --no-lockscreen
+
+[X11]
+SessionDir=/usr/share/xsessions
 EOF
-        systemctl enable sddm 2>>"$LOGFILE"
-        ;;
-    3)
-        echo "Installing LXQt (Wayland, experimental)..."
-        echo "Warning: LXQt native Wayland support is experimental. You may experience instability."
-        pacman -S --noconfirm lxqt lxqt-admin lxqt-config lxqt-globalkeys lxqt-panel lxqt-runner breeze-icons pcmanfm-qt wayland wayland-protocols qt5-wayland qt6-wayland xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland 2>>"$LOGFILE" || echo "Warning: Failed to install some LXQt packages. Continuing..." | tee -a "$LOGFILE"
-        mkdir -p /etc/sddm.conf.d/
-        cat > /etc/sddm.conf.d/lxqt_settings.conf << EOF
-[General]
-Session=lxqt
-
-[Theme]
-Current=breeze
-
-[Wayland]
-EnableHiDPI=true
-EOF
-        systemctl enable sddm 2>>"$LOGFILE"
-        ;;
-    4)
-        echo "Installing XFCE (Wayland, requires XWayland)..."
-        echo "Note: XFCE does not natively support Wayland, but can run under XWayland."
-        pacman -S --noconfirm xfce4 xfce4-goodies xfdesktop xfwm4 xfce4-session network-manager-applet xfce4-power-manager wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-wlr wlroots sddm sddm-kcm xorg-xwayland breeze breeze-icons 2>>"$LOGFILE" || echo "Warning: Failed to install some XFCE packages. Continuing..." | tee -a "$LOGFILE"
-        mkdir -p /etc/sddm.conf.d/
-        cat > /etc/sddm.conf.d/xfce_settings.conf << EOF
-[General]
-Session=xfce
-
-[Theme]
-Current=breeze
-
-[Wayland]
-EnableHiDPI=true
-EOF
-        systemctl enable sddm 2>>"$LOGFILE"
+        systemctl enable sddm &>>"$LOGFILE"
+        echo "KDE Plasma with SDDM (Wayland) installed successfully!"
         ;;
     *)
-        echo "Invalid choice. Exiting." | tee -a "$LOGFILE"
+        echo "ERROR: Invalid choice. Exiting."
         exit 1
         ;;
 esac
 
-echo "Display manager has been installed and enabled for the selected desktop environment."
-
-# Display scaling for Wayland/XWayland
-echo ""
-echo "=== Display Scaling Setup ==="
-if [[ $de_choice == "1" ]]; then
-    echo "For GNOME, set scaling in Settings > Displays after login."
-elif [[ $de_choice == "2" ]]; then
-    echo "For KDE Plasma, set scaling in System Settings > Display and Monitor > Display Configuration after login."
-elif [[ $de_choice == "3" || $de_choice == "4" ]]; then
-    echo "For wlroots-based compositors (LXQt/experimental, XFCE/XWayland), you can use wlr-randr for scaling."
-    echo "Example: wlr-randr --output DSI-1 --scale 0.5"
-    echo "Note: xrandr is for Xorg/XWayland only. For XWayland, use:"
-    echo "xrandr --output DSI-1 --scale 0.5x0.5"
-    echo "If you are running under pure Wayland, use wlr-randr instead."
-fi
+echo "Display manager has been installed and enabled."
 
 # Kernel Update and Audio Fix
 echo ""
@@ -448,7 +405,7 @@ echo "=== User Account Setup ==="
 read -p "Do you want to create a new regular (non-root) user? (y/n): " create_user
 if [[ $create_user == "y" || $create_user == "Y" ]]; then
     read -p "Enter the username for the new user: " new_username
-    useradd -m -G wheel,audio,video,network -s /bin/bash "$new_username"
+    useradd -m -G wheel,audio,video,network -s /bin/bash "$new_username" &>>"$LOGFILE"
     echo "Set password for $new_username:"
     passwd "$new_username"
     echo "$new_username ALL=(ALL) ALL" >> /etc/sudoers.d/10-$new_username
@@ -460,22 +417,19 @@ fi
 read -p "Do you want to create an additional root user? (y/n): " create_root_user
 if [[ $create_root_user == "y" || $create_root_user == "Y" ]]; then
     read -p "Enter the username for the new root user: " root_username
-    useradd -m -G wheel,audio,video,network -s /bin/bash "$root_username"
+    useradd -m -G wheel,audio,video,network -s /bin/bash "$root_username" &>>"$LOGFILE"
     echo "Set password for $root_username:"
     passwd "$root_username"
-    usermod -aG root "$root_username"
+    usermod -aG root "$root_username" &>>"$LOGFILE"
     echo "$root_username ALL=(ALL) ALL" >> /etc/sudoers.d/10-$root_username
     chmod 0440 /etc/sudoers.d/10-$root_username
     echo "Root user $root_username created and added to sudoers and root group."
 fi
 
-# Install media codecs
-echo "Installing media codecs..."
-pacman -S --noconfirm gst-libav gst-plugins-ugly gst-plugins-bad ffmpeg || { echo "Failed to install codecs. Continuing..."; }
-
-# Install archive utilities
-echo "Installing archive utilities..."
-pacman -S --noconfirm file-roller ark xarchiver unrar unzip p7zip || { echo "Failed to install archive utilities. Continuing..."; }
+# Install additional packages
+echo "Installing media codecs and archive utilities..."
+pacman -S --noconfirm gst-libav gst-plugins-ugly gst-plugins-bad ffmpeg \
+    file-roller ark xarchiver unrar unzip p7zip &>>"$LOGFILE" || echo "Warning: Failed to install some packages."
 
 # Optional: yay AUR helper and Flatpak installation
 read -p "Do you want to install yay (AUR helper) and additional Flatpak apps? (y/n): " install_yay
@@ -600,11 +554,10 @@ fi
 # Set up display scaling to 2 for better performance and readability
 echo ""
 echo "=== Setting up display scaling ==="
-echo "Setting display scaling to 2 for better performance..."
+echo "Configuring display scaling for optimal tablet experience..."
 
 if [[ $de_choice == "1" ]]; then
     # GNOME scaling setup
-    echo "Configuring GNOME scaling to 2..."
     mkdir -p /etc/dconf/db/local.d
     cat > /etc/dconf/db/local.d/00-scaling << EOF
 [org/gnome/desktop/interface]
@@ -613,22 +566,38 @@ scaling-factor=uint32 2
 [org/gnome/mutter]
 experimental-features=['scale-monitor-framebuffer']
 EOF
-    dconf update
-    echo "GNOME scaling set to 2. You can adjust this in Settings > Displays after login."
+    dconf update &>>"$LOGFILE"
+    echo "GNOME scaling configured. You can adjust this in Settings > Displays after login."
 elif [[ $de_choice == "2" ]]; then
-    echo "For KDE Plasma, scaling will be set to 200% automatically."
-    echo "You can adjust this in System Settings > Display and Monitor after login."
-elif [[ $de_choice == "3" || $de_choice == "4" ]]; then
-    echo "For wlroots-based compositors, you can use:"
-    echo "wlr-randr --output DSI-1 --scale 2.0"
-    echo "Or for XWayland: xrandr --output DSI-1 --scale 2.0x2.0"
+    # KDE scaling will be handled by the user after login
+    echo "KDE Plasma scaling can be adjusted in System Settings > Display and Monitor after login."
+    echo "Recommended: Set scaling to 200% for optimal tablet experience."
 fi
+
+echo ""
+echo "=== Kernel Update Information ==="
+echo "Current kernel modules have been updated to 6.14.9."
+echo ""
+echo "NOTE: We are working on a seamless kernel update system."
+echo "In the future, you will be able to update the kernel simply by running:"
+echo "  pipa -arch -update"
+echo ""
+echo "This will automatically download and install the latest kernel modules"
+echo "and system updates specifically optimized for the Xiaomi Pad 6."
 
 echo ""
 echo "=== Setup Completed ==="
 echo "Your Arch Linux system on Xiaomi Pad 6 has been set up successfully!"
+echo ""
+if [[ -s "$LOGFILE" ]]; then
+    echo "Some warnings or errors occurred during installation."
+    echo "Check $LOGFILE for detailed information."
+fi
+echo ""
 echo "The system will reboot in 10 seconds to apply changes."
 echo "After reboot, you will be greeted with your new desktop environment."
+echo ""
+echo "MAC address randomization is available via macchanger if needed."
 
 sleep 10
 reboot
