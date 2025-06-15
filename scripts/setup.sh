@@ -155,22 +155,30 @@ echo "Locale set to $locale"
 echo ""
 echo "=== Updating system packages ==="
 echo "This may take some time depending on your internet speed..."
-if ! pacman -Syu --noconfirm &>>"$LOGFILE"; then
-    echo "ERROR: Failed to update packages. Check $LOGFILE for details."
-    exit 1
+read -p "Proceed with system update? (y/n): " update_choice
+if [[ $update_choice == "y" || $update_choice == "Y" ]]; then
+    if ! pacman -Syu --noconfirm &>>"$LOGFILE"; then
+        echo "ERROR: Failed to update packages. Check $LOGFILE for details."
+    fi
+else
+    echo "Skipping system update."
 fi
 
 # Basic packages (Wayland only)
 echo ""
 echo "=== Installing basic packages ==="
-if ! pacman -S --noconfirm mesa vulkan-freedreno sudo networkmanager bluez bluez-utils fastfetch macchanger &>>"$LOGFILE"; then
-    echo "ERROR: Failed to install basic packages. Check $LOGFILE for details."
-    exit 1
+read -p "Install basic packages (mesa, vulkan-freedreno, sudo, etc)? (y/n): " basicpkg_choice
+if [[ $basicpkg_choice == "y" || $basicpkg_choice == "Y" ]]; then
+    if ! pacman -S --noconfirm mesa vulkan-freedreno sudo networkmanager bluez bluez-utils fastfetch macchanger &>>"$LOGFILE"; then
+        echo "ERROR: Failed to install basic packages. Check $LOGFILE for details."
+    fi
+else
+    echo "Skipping basic packages installation."
 fi
 
 # Enable essential services
-systemctl enable NetworkManager &>>"$LOGFILE"
-systemctl enable bluetooth &>>"$LOGFILE"
+systemctl enable NetworkManager &>>"$LOGFILE" || echo "Warning: Failed to enable NetworkManager."
+systemctl enable bluetooth &>>"$LOGFILE" || echo "Warning: Failed to enable bluetooth."
 
 # Download and install fixed BlueZ packages
 echo "Downloading and installing fixed BlueZ packages..."
@@ -179,7 +187,9 @@ if wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez
    wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-libs-5.82-1-aarch64.pkg.tar.xz &>>"$LOGFILE" && \
    wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-tools-0.2.0-6-aarch64.pkg.tar.xz &>>"$LOGFILE" && \
    wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/bluez-utils-5.82-1-aarch64.pkg.tar.xz &>>"$LOGFILE"; then
-    pacman -U --noconfirm bluez-5.82-1-aarch64.pkg.tar.xz bluez-libs-5.82-1-aarch64.pkg.tar.xz bluez-tools-0.2.0-6-aarch64.pkg.tar.xz bluez-utils-5.82-1-aarch64.pkg.tar.xz &>>"$LOGFILE"
+    if ! pacman -U --noconfirm bluez-5.82-1-aarch64.pkg.tar.xz bluez-libs-5.82-1-aarch64.pkg.tar.xz bluez-tools-0.2.0-6-aarch64.pkg.tar.xz bluez-utils-5.82-1-aarch64.pkg.tar.xz &>>"$LOGFILE"; then
+        echo "Warning: Failed to install BlueZ packages. Continuing..."
+    fi
 else
     echo "Warning: Failed to download BlueZ packages. Using default packages."
 fi
@@ -208,22 +218,23 @@ read -p "Enter your choice (1-5): " term_choice
 echo "Installing Firefox browser, fastfetch, and common desktop applications..."
 if ! pacman -S --noconfirm firefox gvfs gvfs-mtp pulseaudio pavucontrol xdg-user-dirs fastfetch &>>"$LOGFILE"; then
     echo "ERROR: Failed to install common applications. Check $LOGFILE for details."
-    exit 1
 fi
 
 # Install selected terminal
 case $term_choice in
-    1) pacman -S --noconfirm gnome-terminal &>>"$LOGFILE" ;;
-    2) pacman -S --noconfirm konsole &>>"$LOGFILE" ;;
-    3) pacman -S --noconfirm alacritty &>>"$LOGFILE" ;;
-    4) pacman -S --noconfirm kitty &>>"$LOGFILE" ;;
-    5) pacman -S --noconfirm foot &>>"$LOGFILE" ;;
+    1) pacman -S --noconfirm gnome-terminal &>>"$LOGFILE" || echo "Warning: Failed to install gnome-terminal." ;;
+    2) pacman -S --noconfirm konsole &>>"$LOGFILE" || echo "Warning: Failed to install konsole." ;;
+    3) pacman -S --noconfirm alacritty &>>"$LOGFILE" || echo "Warning: Failed to install alacritty." ;;
+    4) pacman -S --noconfirm kitty &>>"$LOGFILE" || echo "Warning: Failed to install kitty." ;;
+    5) pacman -S --noconfirm foot &>>"$LOGFILE" || echo "Warning: Failed to install foot." ;;
     *) echo "Invalid choice. Installing default terminal based on DE." ;;
 esac
 
 # Install extra fonts and emojis
 echo "Installing extra fonts and emoji support..."
-pacman -S --noconfirm noto-fonts noto-fonts-emoji ttf-dejavu &>>"$LOGFILE" || echo "Warning: Failed to install fonts. Continuing..."
+if ! pacman -S --noconfirm noto-fonts noto-fonts-emoji ttf-dejavu &>>"$LOGFILE"; then
+    echo "Warning: Failed to install fonts. Continuing..."
+fi
 
 # Optionally install AppleColorEmoji.ttf (iOS emojis)
 read -p "Do you want to install iOS (Apple) emojis? (y/n): " install_apple_emoji
@@ -239,8 +250,10 @@ fi
 
 # Install power management and utilities
 echo "Installing power management, brightness control, and system tools..."
-pacman -S --noconfirm tlp brightnessctl blueman grim slurp scrcpy gtop btop nemo &>>"$LOGFILE" || echo "Warning: Failed to install some utilities."
-systemctl enable tlp &>>"$LOGFILE"
+if ! pacman -S --noconfirm tlp brightnessctl blueman grim slurp scrcpy gtop btop nemo &>>"$LOGFILE"; then
+    echo "Warning: Failed to install some utilities."
+fi
+systemctl enable tlp &>>"$LOGFILE" || echo "Warning: Failed to enable tlp."
 
 # Desktop Environment Installation
 case $de_choice in
@@ -261,7 +274,6 @@ case $de_choice in
             gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard \
             gnome-software gnome-software-packagekit-plugin &>>"$LOGFILE"; then
             echo "ERROR: Failed to install GNOME. Check $LOGFILE for details."
-            exit 1
         fi
         
         # Configure GDM for Wayland
@@ -284,7 +296,7 @@ EOF
         flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo &>>"$LOGFILE"
         
         # Enable GDM
-        systemctl enable gdm &>>"$LOGFILE"
+        systemctl enable gdm &>>"$LOGFILE" || echo "Warning: Failed to enable gdm."
         echo "GNOME with GDM (Wayland) installed successfully!"
         ;;
     2)
@@ -294,7 +306,6 @@ EOF
             xdg-desktop-portal xdg-desktop-portal-kde wlroots breeze breeze-icons \
             sddm sddm-kcm qtvirtualkeyboard &>>"$LOGFILE"; then
             echo "ERROR: Failed to install KDE Plasma. Check $LOGFILE for details."
-            exit 1
         fi
         
         # Configure SDDM for Wayland
@@ -314,7 +325,7 @@ CompositorCommand=kwin_wayland --drm --no-lockscreen
 [X11]
 SessionDir=/usr/share/xsessions
 EOF
-        systemctl enable sddm &>>"$LOGFILE"
+        systemctl enable sddm &>>"$LOGFILE" || echo "Warning: Failed to enable sddm."
         echo "KDE Plasma with SDDM (Wayland) installed successfully!"
         ;;
     *)
@@ -329,16 +340,21 @@ echo "Display manager has been installed and enabled."
 echo ""
 echo "=== Arch Linux Kernel 6.14.2 Update ==="
 echo "Downloading and extracting kernel modules..."
-pacman -S --noconfirm wget p7zip unzip || { echo "Failed to install download tools. Continuing anyway..."; }
-wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z -O /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z || { echo "Failed to download kernel modules. Skipping kernel update."; }
+read -p "Do you want to update kernel modules? (y/n): " kernel_choice
+if [[ $kernel_choice == "y" || $kernel_choice == "Y" ]]; then
+    pacman -S --noconfirm wget p7zip unzip || { echo "Failed to install download tools. Continuing anyway..."; }
+    wget -nc https://github.com/BrickTM-mainline/pipa/releases/download/1.1/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z -O /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z || { echo "Failed to download kernel modules. Skipping kernel update."; }
 
-if [ -f /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z ]; then
-    echo "Extracting kernel modules to /lib/modules/..."
-    7z x /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z -o/lib/modules/ || { echo "Failed to extract kernel modules. Skipping kernel update."; }
-    rm /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z
-    echo "Kernel modules updated successfully!"
+    if [ -f /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z ]; then
+        echo "Extracting kernel modules to /lib/modules/..."
+        7z x /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z -o/lib/modules/ || { echo "Failed to extract kernel modules. Skipping kernel update."; }
+        rm /tmp/6.14.2-1-aarch64-pipa-arch-pipa-domin746826+.7z
+        echo "Kernel modules updated successfully!"
+    else
+        echo "Kernel modules archive not found. Skipping kernel update."
+    fi
 else
-    echo "Kernel modules archive not found. Skipping kernel update."
+    echo "Skipping kernel module update."
 fi
 
 echo ""
@@ -428,8 +444,10 @@ fi
 
 # Install additional packages
 echo "Installing media codecs and archive utilities..."
-pacman -S --noconfirm gst-libav gst-plugins-ugly gst-plugins-bad ffmpeg \
-    file-roller ark xarchiver unrar unzip p7zip &>>"$LOGFILE" || echo "Warning: Failed to install some packages."
+if ! pacman -S --noconfirm gst-libav gst-plugins-ugly gst-plugins-bad ffmpeg \
+    file-roller ark xarchiver unrar unzip p7zip &>>"$LOGFILE"; then
+    echo "Warning: Failed to install some packages."
+fi
 
 # Optional: yay AUR helper and Flatpak installation
 read -p "Do you want to install yay (AUR helper) and additional Flatpak apps? (y/n): " install_yay
@@ -505,7 +523,7 @@ fi
 
 # Install additional useful native packages
 echo "Installing additional useful native packages for ARM64..."
-pacman -S --noconfirm \
+if ! pacman -S --noconfirm \
     neofetch htop tree vim nano \
     git curl wget rsync \
     mpv imagemagick \
@@ -513,25 +531,27 @@ pacman -S --noconfirm \
     gnome-calculator gnome-text-editor \
     evolution evolution-ews \
     simple-scan gnome-screenshot \
-    || { echo "Failed to install some additional packages. Continuing..."; }
+    &>>"$LOGFILE"; then
+    echo "Failed to install some additional packages. Continuing..."
+fi
 
 # ARM64 specific optimizations
 echo "Applying ARM64 specific optimizations..."
-# Enable zswap for better memory management on ARM devices
-echo 'zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20' >> /etc/default/grub || true
 
 # Install ARM64 performance tools
 echo "Installing ARM64 performance monitoring tools..."
-pacman -S --noconfirm \
+if ! pacman -S --noconfirm \
     linux-cpupower \
     thermald \
     powertop \
     iotop \
-    || { echo "Failed to install performance tools. Continuing..."; }
+    &>>"$LOGFILE"; then
+    echo "Failed to install performance tools. Continuing..."
+fi
 
 # Wayland and ARM/Qualcomm drivers (ensure all needed for best perf)
 echo "Installing essential Wayland and ARM/Qualcomm drivers..."
-pacman -S --noconfirm \
+if ! pacman -S --noconfirm \
     wayland wayland-protocols \
     qt5-wayland qt6-wayland \
     mesa mesa-utils \
@@ -541,13 +561,17 @@ pacman -S --noconfirm \
     libinput xf86-input-libinput \
     xf86-video-fbdev xf86-video-vesa \
     mesa-opencl-icd clinfo \
-    || { echo "Failed to install Wayland/ARM/Qualcomm drivers. Continuing..."; }
+    &>>"$LOGFILE"; then
+    echo "Failed to install Wayland/ARM/Qualcomm drivers. Continuing..."
+fi
 
 # Suggestion: Offer to install sway (Wayland compositor)
 read -p "Do you want to install sway (Wayland compositor, minimal desktop)? (y/n): " install_sway
 if [[ $install_sway == "y" || $install_sway == "Y" ]]; then
-    pacman -S --noconfirm sway swaybg swaylock swayidle foot dmenu greetd greetd-tuigreet 2>>"$LOGFILE" || echo "Warning: Failed to install sway or related packages. Continuing..." | tee -a "$LOGFILE"
-    systemctl enable greetd 2>>"$LOGFILE"
+    if ! pacman -S --noconfirm sway swaybg swaylock swayidle foot dmenu greetd greetd-tuigreet &>>"$LOGFILE"; then
+        echo "Warning: Failed to install sway or related packages. Continuing..."
+    fi
+    systemctl enable greetd &>>"$LOGFILE" || echo "Warning: Failed to enable greetd."
     echo "Sway and greetd installed. You can customize sway config in ~/.config/sway/"
 fi
 
@@ -594,10 +618,4 @@ if [[ -s "$LOGFILE" ]]; then
     echo "Check $LOGFILE for detailed information."
 fi
 echo ""
-echo "The system will reboot in 10 seconds to apply changes."
-echo "After reboot, you will be greeted with your new desktop environment."
-echo ""
 echo "MAC address randomization is available via macchanger if needed."
-
-sleep 10
-reboot
