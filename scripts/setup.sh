@@ -259,20 +259,20 @@ systemctl enable tlp &>>"$LOGFILE" || echo "Warning: Failed to enable tlp."
 case $de_choice in
     1)
         echo "Installing GNOME (Wayland)..."
-        # Install GNOME dependencies
+        # Install GNOME dependencies (skip libappstream-glib)
         if ! pacman -S --noconfirm flatpak ostree malcontent appstream \
-            libappstream-glib appstream-glib bubblewrap xdg-dbus-proxy \
+            appstream-glib bubblewrap xdg-dbus-proxy \
             dconf dconf-editor gsettings-desktop-schemas \
             polkit accountsservice &>>"$LOGFILE"; then
             echo "Warning: Failed to install some GNOME dependencies."
         fi
         
-        # Install GNOME core
+        # Install GNOME core (skip gnome-icon-theme, gnome-software-packagekit-plugin)
         if ! pacman -S --noconfirm gnome gnome-extra gnome-tweaks gdm \
-            adwaita-icon-theme gnome-icon-theme gnome-themes-extra papirus-icon-theme \
+            adwaita-icon-theme gnome-themes-extra papirus-icon-theme \
             wayland wayland-protocols xdg-desktop-portal xdg-desktop-portal-gnome \
             gtk3 gtk4 qt5-wayland qt6-wayland breeze breeze-icons onboard \
-            gnome-software gnome-software-packagekit-plugin &>>"$LOGFILE"; then
+            gnome-software &>>"$LOGFILE"; then
             echo "ERROR: Failed to install GNOME. Check $LOGFILE for details."
         fi
         
@@ -292,10 +292,17 @@ AutomaticLoginEnable=false
 [debug]
 EOF
         
-        # Configure Flatpak
-        flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo &>>"$LOGFILE"
+        # Ensure Flatpak is installed before using it
+        if command -v flatpak &>/dev/null; then
+            flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo &>>"$LOGFILE"
+        else
+            echo "Warning: Flatpak is not installed, skipping flathub remote add."
+        fi
+
         # Always enable GDM for GNOME
-        systemctl enable gdm &>>"$LOGFILE" || echo "Warning: Failed to enable gdm."
+        if ! systemctl enable gdm &>>"$LOGFILE"; then
+            echo "ERROR: Failed to enable gdm. Try installing gdm manually and enable it."
+        fi
         echo "GNOME with GDM (Wayland) installed successfully!"
         ;;
     2)
@@ -479,19 +486,20 @@ if [[ $install_yay == "y" || $install_yay == "Y" ]]; then
             break
         done
         if [[ -n "$yay_user" ]]; then
-            echo "Flatpak is already installed system-wide."
-            # Install ARM64-compatible Flatpak apps
-            if [[ $de_choice == "1" ]]; then
-                echo "Installing ARM64-compatible Flatpak apps for GNOME..."
-                sudo -u "$yay_user" flatpak install -y flathub org.videolan.VLC
-                sudo -u "$yay_user" flatpak install -y flathub org.signal.Signal
-                sudo -u "$yay_user" flatpak install -y flathub com.github.tchx84.Flatseal
-                sudo -u "$yay_user" flatpak install -y flathub org.gnome.Calculator
-                sudo -u "$yay_user" flatpak install -y flathub org.gnome.TextEditor
-                echo "ARM64-compatible Flatpak apps installed!"
+            if command -v flatpak >/dev/null 2>&1; then
+                # Install ARM64-compatible Flatpak apps
+                if [[ $de_choice == "1" ]]; then
+                    echo "Installing ARM64-compatible Flatpak apps for GNOME..."
+                    sudo -u "$yay_user" flatpak install -y flathub org.videolan.VLC
+                    sudo -u "$yay_user" flatpak install -y flathub org.signal.Signal
+                    sudo -u "$yay_user" flatpak install -y flathub com.github.tchx84.Flatseal
+                    sudo -u "$yay_user" flatpak install -y flathub org.gnome.Calculator
+                    sudo -u "$yay_user" flatpak install -y flathub org.gnome.TextEditor
+                    echo "ARM64-compatible Flatpak apps installed!"
+                fi
+            else
+                echo "Flatpak is not installed, skipping Flatpak app install."
             fi
-        else
-            echo "No user selected. Skipping additional flatpak apps."
         fi
     else
         pacman -S --noconfirm git base-devel || { echo "Failed to install build tools for yay. Skipping yay." | tee -a "$LOGFILE"; }
@@ -512,25 +520,30 @@ if [[ $install_yay == "y" || $install_yay == "Y" ]]; then
                     makepkg -si --noconfirm
                 '
                 echo "yay installed successfully!"
-                
-                # Install ARM64-compatible Flatpak apps for GNOME
-                if [[ $de_choice == "1" ]]; then
-                    echo "Installing ARM64-compatible Flatpak apps for GNOME..."
-                    sudo -u "$yay_user" flatpak install -y flathub org.videolan.VLC
-                    sudo -u "$yay_user" flatpak install -y flathub org.mozilla.Thunderbird
-                    sudo -u "$yay_user" flatpak install -y flathub org.signal.Signal
-                    sudo -u "$yay_user" flatpak install -y flathub com.github.tchx84.Flatseal
-                    sudo -u "$yay_user" flatpak install -y flathub org.gnome.Calculator
-                    sudo -u "$yay_user" flatpak install -y flathub org.gnome.TextEditor
-                    echo "ARM64-compatible Flatpak apps installed!"
+                if command -v flatpak >/dev/null 2>&1; then
+                    # Install ARM64-compatible Flatpak apps for GNOME
+                    if [[ $de_choice == "1" ]]; then
+                        echo "Installing ARM64-compatible Flatpak apps for GNOME..."
+                        sudo -u "$yay_user" flatpak install -y flathub org.videolan.VLC
+                        sudo -u "$yay_user" flatpak install -y flathub org.mozilla.Thunderbird
+                        sudo -u "$yay_user" flatpak install -y flathub org.signal.Signal
+                        sudo -u "$yay_user" flatpak install -y flathub com.github.tchx84.Flatseal
+                        sudo -u "$yay_user" flatpak install -y flathub org.gnome.Calculator
+                        sudo -u "$yay_user" flatpak install -y flathub org.gnome.TextEditor
+                        echo "ARM64-compatible Flatpak apps installed!"
+                    fi
+                else
+                    echo "Flatpak is not installed, skipping Flatpak app install."
                 fi
                 
                 # Install useful AUR packages for ARM64
                 echo "Installing useful AUR packages for ARM64..."
-                sudo -u "$yay_user" yay -S --noconfirm visual-studio-code-bin
-                echo "AUR packages installed!"
-            else
-                echo "No user selected. Skipping yay and additional apps."
+                if command -v yay >/dev/null 2>&1; then
+                    sudo -u "$yay_user" yay -S --noconfirm visual-studio-code-bin
+                    echo "AUR packages installed!"
+                else
+                    echo "yay is not available, skipping AUR package install."
+                fi
             fi
         fi
     fi
@@ -539,7 +552,7 @@ fi
 # Install additional useful native packages
 echo "Installing additional useful native packages for ARM64..."
 if ! pacman -S --noconfirm \
-    neofetch htop tree vim nano \
+    htop tree vim nano \
     git curl wget rsync \
     mpv imagemagick \
     transmission-cli transmission-gtk \
@@ -553,19 +566,15 @@ fi
 # ARM64 specific optimizations
 echo "Applying ARM64 specific optimizations..."
 
-# Install ARM64 performance tools
-echo "Installing ARM64 performance monitoring tools..."
+# Remove unavailable performance tools for ARM64
 if ! pacman -S --noconfirm \
-    linux-cpupower \
-    thermald \
     powertop \
     iotop \
     &>>"$LOGFILE"; then
     echo "Failed to install performance tools. Continuing..."
 fi
 
-# Wayland and ARM/Qualcomm drivers (ensure all needed for best perf)
-echo "Installing essential Wayland and ARM/Qualcomm drivers..."
+# Wayland and ARM/Qualcomm drivers (remove mesa-opencl-icd)
 if ! pacman -S --noconfirm \
     wayland wayland-protocols \
     qt5-wayland qt6-wayland \
@@ -575,7 +584,7 @@ if ! pacman -S --noconfirm \
     libva-mesa-driver mesa-vdpau \
     libinput xf86-input-libinput \
     xf86-video-fbdev xf86-video-vesa \
-    mesa-opencl-icd clinfo \
+    clinfo \
     &>>"$LOGFILE"; then
     echo "Failed to install Wayland/ARM/Qualcomm drivers. Continuing..."
 fi
