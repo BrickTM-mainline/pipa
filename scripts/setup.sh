@@ -294,8 +294,7 @@ EOF
         
         # Configure Flatpak
         flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo &>>"$LOGFILE"
-        
-        # Enable GDM
+        # Always enable GDM for GNOME
         systemctl enable gdm &>>"$LOGFILE" || echo "Warning: Failed to enable gdm."
         echo "GNOME with GDM (Wayland) installed successfully!"
         ;;
@@ -325,6 +324,7 @@ CompositorCommand=kwin_wayland --drm --no-lockscreen
 [X11]
 SessionDir=/usr/share/xsessions
 EOF
+        # Always enable SDDM for KDE
         systemctl enable sddm &>>"$LOGFILE" || echo "Warning: Failed to enable sddm."
         echo "KDE Plasma with SDDM (Wayland) installed successfully!"
         ;;
@@ -417,29 +417,44 @@ echo "Audio configuration files created successfully!"
 echo ""
 echo "=== User Account Setup ==="
 
-# Prompt to create a regular user
-read -p "Do you want to create a new regular (non-root) user? (y/n): " create_user
-if [[ $create_user == "y" || $create_user == "Y" ]]; then
-    read -p "Enter the username for the new user: " new_username
-    useradd -m -G wheel,audio,video,network -s /bin/bash "$new_username" &>>"$LOGFILE"
-    echo "Set password for $new_username:"
-    passwd "$new_username"
-    echo "$new_username ALL=(ALL) ALL" >> /etc/sudoers.d/10-$new_username
-    chmod 0440 /etc/sudoers.d/10-$new_username
-    echo "User $new_username created and added to sudoers."
-fi
-
-# Prompt to create an additional root user
-read -p "Do you want to create an additional root user? (y/n): " create_root_user
-if [[ $create_root_user == "y" || $create_root_user == "Y" ]]; then
-    read -p "Enter the username for the new root user: " root_username
-    useradd -m -G wheel,audio,video,network -s /bin/bash "$root_username" &>>"$LOGFILE"
-    echo "Set password for $root_username:"
-    passwd "$root_username"
-    usermod -aG root "$root_username" &>>"$LOGFILE"
-    echo "$root_username ALL=(ALL) ALL" >> /etc/sudoers.d/10-$root_username
-    chmod 0440 /etc/sudoers.d/10-$root_username
-    echo "Root user $root_username created and added to sudoers and root group."
+read -p "Do you want to create any additional users (regular or root)? (y/n): " add_users
+if [[ $add_users == "y" || $add_users == "Y" ]]; then
+    while true; do
+        echo ""
+        echo "1) Create a regular (non-root) user"
+        echo "2) Create an additional root user"
+        echo "3) Done adding users"
+        read -p "Choose an option [1-3]: " user_opt
+        case $user_opt in
+            1)
+                read -p "Enter the username for the new regular user: " new_username
+                useradd -m -G wheel,audio,video,network -s /bin/bash "$new_username" &>>"$LOGFILE"
+                echo "Set password for $new_username:"
+                passwd "$new_username"
+                echo "$new_username ALL=(ALL) ALL" >> /etc/sudoers.d/10-$new_username
+                chmod 0440 /etc/sudoers.d/10-$new_username
+                echo "User $new_username created and added to sudoers."
+                ;;
+            2)
+                read -p "Enter the username for the new root user: " root_username
+                useradd -m -G wheel,audio,video,network -s /bin/bash "$root_username" &>>"$LOGFILE"
+                echo "Set password for $root_username:"
+                passwd "$root_username"
+                usermod -aG root "$root_username" &>>"$LOGFILE"
+                echo "$root_username ALL=(ALL) ALL" >> /etc/sudoers.d/10-$root_username
+                chmod 0440 /etc/sudoers.d/10-$root_username
+                echo "Root user $root_username created and added to sudoers and root group."
+                ;;
+            3)
+                break
+                ;;
+            *)
+                echo "Invalid option."
+                ;;
+        esac
+    done
+else
+    echo "Skipping user creation."
 fi
 
 # Install additional packages
@@ -578,24 +593,26 @@ fi
 # Set up display scaling to 2 for better performance and readability
 echo ""
 echo "=== Setting up display scaling ==="
-echo "Configuring display scaling for optimal tablet experience..."
-
-if [[ $de_choice == "1" ]]; then
-    # GNOME scaling setup
-    mkdir -p /etc/dconf/db/local.d
-    cat > /etc/dconf/db/local.d/00-scaling << EOF
+read -p "Would you like to configure display scaling for optimal tablet experience? (y/n): " scale_choice
+if [[ $scale_choice == "y" || $scale_choice == "Y" ]]; then
+    if [[ $de_choice == "1" ]]; then
+        # GNOME scaling setup
+        mkdir -p /etc/dconf/db/local.d
+        cat > /etc/dconf/db/local.d/00-scaling << EOF
 [org/gnome/desktop/interface]
 scaling-factor=uint32 2
 
 [org/gnome/mutter]
 experimental-features=['scale-monitor-framebuffer']
 EOF
-    dconf update &>>"$LOGFILE"
-    echo "GNOME scaling configured. You can adjust this in Settings > Displays after login."
-elif [[ $de_choice == "2" ]]; then
-    # KDE scaling will be handled by the user after login
-    echo "KDE Plasma scaling can be adjusted in System Settings > Display and Monitor after login."
-    echo "Recommended: Set scaling to 200% for optimal tablet experience."
+        dconf update &>>"$LOGFILE"
+        echo "GNOME scaling configured. You can adjust this in Settings > Displays after login."
+    elif [[ $de_choice == "2" ]]; then
+        echo "KDE Plasma scaling can be adjusted in System Settings > Display and Monitor after login."
+        echo "Recommended: Set scaling to 200% for optimal tablet experience."
+    fi
+else
+    echo "Skipping display scaling configuration."
 fi
 
 echo ""
